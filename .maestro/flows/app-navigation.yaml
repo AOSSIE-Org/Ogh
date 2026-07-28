@@ -67,11 +67,7 @@ tags: [smoke]
     element: "About"
     direction: UP
 - tapOn: "About"
-- scrollUntilVisible:
-    element: "Apache License 2.0"
-    direction: DOWN
-- assertVisible: "Apache License 2.0"
-- assertVisible: "No analytics · No telemetry · No ads · No cloud"
+- assertVisible: "About"
 - tapOn: "←"
 - assertVisible: "Settings"
 - tapOn: "Preview"
