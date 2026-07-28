@@ -1,0 +1,35 @@
+appId: com.ogh.app
+name: Twitch authorization page loads
+tags: [oauth, network]
+---
+- setOrientation: PORTRAIT
+- launchApp:
+    clearState: true
+- tapOn: "Connect Twitch"
+- runFlow:
+    when:
+      visible: "Accept & continue"
+    commands:
+      - tapOn: "Accept & continue"
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+- runFlow:
+    when:
+      visible: "Use without an account"
+    commands:
+      - tapOn: "Use without an account"
+- runFlow:
+    when:
+      visible: "Chrome notifications make things easier"
+    commands:
+      - tapOn: "No thanks"
+- extendedWaitUntil:
+    # Chrome does not expose Twitch's rendered web content to Android's
+    # accessibility tree, but it does expose the successfully navigated URL.
+    visible: "twitch.tv/activate.*"
+    timeout: 30000
+- assertNotVisible: ".*Page Not Found.*"
+- assertNotVisible: ".*This site can’t be reached.*"

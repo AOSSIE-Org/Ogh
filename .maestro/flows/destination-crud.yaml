@@ -1,0 +1,48 @@
+appId: com.ogh.app
+name: Manual destination CRUD
+tags: [smoke]
+---
+- setOrientation: PORTRAIT
+- launchApp:
+    clearState: true
+- tapOn: "Add manual RTMP"
+- assertVisible: "Add Destination"
+- tapOn:
+    text: "Destination Name"
+    point: "90%,50%"
+- eraseText: 50
+- inputText: "Maestro Test"
+- tapOn: "RTMP URL"
+- inputText: "rtmp://127.0.0.1/live"
+- scrollUntilVisible:
+    element: "Stream Key"
+    direction: DOWN
+- tapOn: "Stream Key"
+- inputText: "maestro-test-key"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Submit Destination"
+    direction: DOWN
+- tapOn:
+    text: "Submit Destination"
+- assertVisible: "Destinations"
+- assertVisible: "Maestro Test"
+- tapOn: "Edit"
+- assertVisible: "Edit Destination"
+- longPressOn: "Maestro Test"
+- tapOn: "Select all"
+- eraseText: 1
+- inputText: "Maestro Updated"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Submit Destination"
+    direction: DOWN
+- tapOn:
+    text: "Submit Destination"
+- assertVisible: "Maestro Updated"
+- tapOn: "Delete"
+- assertVisible: "Delete Maestro Updated?"
+- tapOn: "Delete"
+- assertVisible: "No destinations yet"

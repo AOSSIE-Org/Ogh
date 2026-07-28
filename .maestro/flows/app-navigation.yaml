@@ -1,0 +1,132 @@
+appId: com.ogh.app
+name: App navigation and settings
+tags: [smoke]
+---
+- setOrientation: PORTRAIT
+- launchApp:
+    clearState: true
+- assertVisible: "Set up Ogh"
+- assertVisible: "Connect a platform"
+- assertVisible: "Connect YouTube"
+- assertVisible: "Connect Twitch"
+- tapOn: "Add manual RTMP"
+- assertVisible: "Add Destination"
+- tapOn:
+    text: "Destination Name"
+    point: "90%,50%"
+- eraseText: 50
+- inputText: "Navigation Test"
+- tapOn: "RTMP URL"
+- inputText: "rtmp://127.0.0.1/live"
+- scrollUntilVisible:
+    element: "Stream Key"
+    direction: DOWN
+- tapOn: "Stream Key"
+- inputText: "navigation-test-key"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Submit Destination"
+    direction: DOWN
+- tapOn: "Submit Destination"
+- assertVisible: "Destinations"
+- tapOn: "←"
+- assertVisible: "Settings"
+- assertVisible: "Stream details"
+- assertVisible: "Title"
+- longPressOn: "Ogh Live"
+- tapOn: "Select all"
+- eraseText: 1
+- inputText: "Persisted stream title"
+- hideKeyboard
+- tapOn: "Description"
+- inputText: "Persisted description"
+- hideKeyboard
+- tapOn: "Unlisted"
+- tapOn: "Low"
+- scrollUntilVisible:
+    element: "Resolution"
+    direction: DOWN
+- tapOn: "720p"
+- tapOn: "540p"
+- scrollUntilVisible:
+    element: "30 fps"
+    direction: DOWN
+- tapOn: "30 fps"
+- tapOn: "25 fps"
+- scrollUntilVisible:
+    element: "2.5 Mbps"
+    direction: DOWN
+- tapOn: "2.5 Mbps"
+- tapOn: "4.5 Mbps"
+- scrollUntilVisible:
+    element: "Ogh logo (default)"
+    direction: DOWN
+- assertVisible: "Ogh logo (default)"
+- scrollUntilVisible:
+    element: "About"
+    direction: UP
+- tapOn: "About"
+- scrollUntilVisible:
+    element: "Apache License 2.0"
+    direction: DOWN
+- assertVisible: "Apache License 2.0"
+- assertVisible: "No analytics · No telemetry · No ads · No cloud"
+- tapOn: "←"
+- assertVisible: "Settings"
+- tapOn: "Preview"
+- assertVisible: "Screen"
+- assertVisible: "Camera"
+- assertVisible: "Mic"
+- assertVisible: "System Audio"
+- assertVisible: "Go Live"
+- assertVisible: "Settings"
+- tapOn: "Mic"
+- tapOn: "Mic"
+- tapOn: "Camera"
+- runFlow:
+    when:
+      visible: "While using the app"
+    commands:
+      - tapOn: "While using the app"
+- assertVisible: "Camera preview"
+- tapOn: "Screen"
+- pressKey: Home
+- killApp
+- launchApp:
+    stopApp: false
+- assertVisible: "Go Live"
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: "Persisted stream title"
+    direction: UP
+- assertVisible: "Persisted stream title"
+- assertVisible: "Persisted description"
+- assertVisible: "Unlisted"
+- assertVisible: "Low"
+- scrollUntilVisible:
+    element: "540p"
+    direction: DOWN
+- assertVisible: "540p"
+- scrollUntilVisible:
+    element: "25 fps"
+    direction: DOWN
+- assertVisible: "25 fps"
+- scrollUntilVisible:
+    element: "4.5 Mbps"
+    direction: DOWN
+- assertVisible: "4.5 Mbps"
+- scrollUntilVisible:
+    element: "Lock Orientation"
+    direction: DOWN
+- tapOn:
+    text: "Lock Orientation"
+    point: "90%,50%"
+- tapOn: "Preview"
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible: "Screen"
+- assertVisible: "Camera"
+- assertVisible: "Mic"
+- assertVisible: "Audio"
+- assertVisible: "Go Live"
+- setOrientation: PORTRAIT

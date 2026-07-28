@@ -1,0 +1,10 @@
+flows:
+  - "flows/*.yaml"
+testOutputDir: build/reports/maestro
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - app-navigation
+    - destination-crud
+    - youtube-authorization-page
+    - twitch-authorization-page

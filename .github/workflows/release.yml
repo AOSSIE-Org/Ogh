@@ -1,0 +1,181 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic release tag (for example, v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      APP_REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Set release version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            RELEASE_TAG="$REQUESTED_VERSION"
+          else
+            RELEASE_TAG="$GITHUB_REF_NAME"
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release version must use a tag such as v1.0.0" >&2
+            exit 1
+          fi
+          VERSION="${RELEASE_TAG#v}"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "APP_VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
+          echo "APP_VERSION_CODE=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+
+      - name: Prepare release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "ANDROID_RELEASE_KEYSTORE_BASE64 secret is not configured" >&2
+            exit 1
+          fi
+          KEYSTORE_PATH="$RUNNER_TEMP/ogh-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "RELEASE_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Verify release keystore
+        env:
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE_PASSWORD" ] || [ -z "$RELEASE_KEY_ALIAS" ] || [ -z "$RELEASE_KEY_PASSWORD" ]; then
+            echo "Release signing secrets are incomplete" >&2
+            exit 1
+          fi
+          keytool -list \
+            -keystore "$RELEASE_KEYSTORE_PATH" \
+            -storepass "$RELEASE_KEYSTORE_PASSWORD" \
+            -alias "$RELEASE_KEY_ALIAS"
+          VERIFY_KEYSTORE="$RUNNER_TEMP/ogh-key-entry-check.p12"
+          VERIFY_PASSWORD=$(openssl rand -hex 24)
+          keytool -importkeystore -noprompt \
+            -srckeystore "$RELEASE_KEYSTORE_PATH" \
+            -srcstorepass "$RELEASE_KEYSTORE_PASSWORD" \
+            -srcalias "$RELEASE_KEY_ALIAS" \
+            -srckeypass "$RELEASE_KEY_PASSWORD" \
+            -destkeystore "$VERIFY_KEYSTORE" \
+            -deststoretype PKCS12 \
+            -deststorepass "$VERIFY_PASSWORD"
+          rm -f "$VERIFY_KEYSTORE"
+
+      - name: Test, lint, and build signed release APK
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ env.RELEASE_KEYSTORE_PATH }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: >-
+          ./gradlew --no-daemon
+          :shared:jvmTest
+          :androidApp:testDebugUnitTest
+          :androidApp:lintRelease
+          :androidApp:assembleRelease
+
+      - name: Verify release signature
+        run: |
+          APK=$(find androidApp/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)
+          if [ -z "$APK" ]; then
+            echo "Release APK was not produced" >&2
+            exit 1
+          fi
+          APKSIGNER=$(find -L "$ANDROID_HOME/build-tools" -maxdepth 2 \
+            -type f -name apksigner -print | sort -V | tail -1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "apksigner was not found in the Android SDK" >&2
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      - name: Export release version
+        id: version
+        run: echo "VERSION=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          cp androidApp/build/outputs/apk/release/*.apk \
+            release-assets/ogh-${{ steps.version.outputs.VERSION }}.apk
+          cd release-assets
+          sha256sum ogh-${{ steps.version.outputs.VERSION }}.apk \
+            > ogh-${{ steps.version.outputs.VERSION }}.sha256
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          DELIMITER="changes-$(openssl rand -hex 16)"
+          {
+            echo "CHANGES<<$DELIMITER"
+            if [ -n "$PREV_TAG" ]; then
+              git log --pretty=format:"- %s" "$PREV_TAG"..HEAD --no-merges
+            else
+              git log --pretty=format:"- %s" --no-merges -20
+            fi
+            echo
+            echo "$DELIMITER"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: Ogh ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## What's Changed
+
+            ${{ steps.changelog.outputs.CHANGES }}
+
+            ## Assets
+
+            - `ogh-${{ steps.version.outputs.VERSION }}.apk` — Android application
+            - `ogh-${{ steps.version.outputs.VERSION }}.sha256` — SHA256 checksum
+
+            ## Install
+
+            Download the APK and install it on your Android device.
+            Requires Android 7.0 (API 24) or higher.
+          files: release-assets/*
+          generate_release_notes: true

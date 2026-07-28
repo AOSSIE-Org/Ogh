@@ -1,0 +1,30 @@
+appId: com.ogh.app
+name: YouTube authorization page loads
+tags: [oauth, network]
+---
+- setOrientation: PORTRAIT
+- launchApp:
+    clearState: true
+- tapOn: "Connect YouTube"
+- runFlow:
+    when:
+      visible: "Accept & continue"
+    commands:
+      - tapOn: "Accept & continue"
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+- runFlow:
+    when:
+      visible: "Use without an account"
+    commands:
+      - tapOn: "Use without an account"
+- extendedWaitUntil:
+    # Chrome Custom Tabs exposes the loaded origin consistently; Google page
+    # text is not consistently included in Android's accessibility tree.
+    visible: "accounts.google.com.*"
+    timeout: 30000
+- assertNotVisible: ".*Custom URI scheme is not enabled.*"
+- assertNotVisible: ".*Error 400.*"
