@@ -52,7 +52,7 @@ slow-down, denial and expiration.
 3. Configure the OAuth consent screen, support contact, and exactly one scope:
    `https://www.googleapis.com/auth/youtube`.
 4. Complete Google's OAuth app verification before distributing a build that requests YouTube management scopes.
-5. Create the native/Android OAuth client for package `com.ogh.app` and the
+5. Create the native/Android OAuth client for package `org.aossie.ogh` and the
    signing certificate used for the distributed build. Obtain a signing SHA-1
    with:
 
@@ -76,7 +76,7 @@ slow-down, denial and expiration.
 
 ### Redirect requirement
 
-Ogh returns from the browser through `com.ogh.app:/oauth2callback`. The
+Ogh returns from the browser through `org.aossie.ogh:/oauth2callback`. The
 redirect scheme in `OAuthConfig.kt`, the manifest intent filter, and the Google
 Android client's custom-scheme setting must all agree. Validate the complete
 flow on both standard and de-Googled Android using the final signed review APK.

@@ -1,11 +1,11 @@
-package com.ogh.app.viewmodel
+package org.aossie.ogh.viewmodel
 
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pedro.common.ConnectChecker
-import com.ogh.app.ScreenCaptureService
-import com.ogh.app.data.AppSettingsStore
+import org.aossie.ogh.ScreenCaptureService
+import org.aossie.ogh.data.AppSettingsStore
 import com.ogh.shared.data.DestinationRepository
 import com.ogh.shared.domain.AppSettings
 import com.ogh.shared.domain.AudioSettings

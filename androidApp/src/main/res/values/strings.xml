@@ -7,6 +7,6 @@
         them registered to this project. Never add client secrets, access tokens,
         refresh tokens, or stream keys here.
     -->
-    <string name="youtube_client_id" translatable="false">12650804497-pklvchb6l6prgmlnlpnejc3g8ovr25o9.apps.googleusercontent.com</string>
+    <string name="youtube_client_id" translatable="false">12650804497-7d7an3ldp5hapfngnct3lofbaddd52af.apps.googleusercontent.com</string>
     <string name="twitch_client_id" translatable="false">0ierwbtq6sams93ds7kpsrr5mkd6vv</string>
 </resources>

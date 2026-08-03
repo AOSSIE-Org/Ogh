@@ -16,7 +16,7 @@ of that implementation. If it drifts, verify the code and tests and update this
 file; do not change working behavior merely to make it match stale prose.
 
 The current deliverable is the Android application. Its application ID,
-namespace, OAuth redirect identity, and Maestro app ID are `com.ogh.app`.
+namespace, OAuth redirect identity, and Maestro app ID are `org.aossie.ogh`.
 Android 7.0/API 24 is the minimum version; compile and target SDK are 36.
 
 The name Ogh comes from Sanskrit *ogha* (ओघ), meaning a stream, current,
@@ -435,7 +435,7 @@ tab. It does not use Google Sign-In or require Google Play Services.
 |---|---|
 | Authorization endpoint | `https://accounts.google.com/o/oauth2/v2/auth` |
 | Token endpoint | `https://oauth2.googleapis.com/token` |
-| Redirect | `com.ogh.app:/oauth2callback` |
+| Redirect | `org.aossie.ogh:/oauth2callback` |
 | Scope | `https://www.googleapis.com/auth/youtube` |
 | Extra authorization parameter | `access_type=offline` |
 | API base | `https://www.googleapis.com/youtube/v3` |

@@ -1,4 +1,4 @@
-package com.ogh.app
+package org.aossie.ogh
 
 import android.content.pm.ActivityInfo
 import android.hardware.camera2.CameraCharacteristics

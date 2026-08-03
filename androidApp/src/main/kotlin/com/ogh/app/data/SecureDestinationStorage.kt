@@ -1,8 +1,8 @@
-package com.ogh.app.data
+package org.aossie.ogh.data
 
 import android.content.Context
 import android.util.Log
-import com.ogh.app.oauth.AndroidKeystoreTokenStorage
+import org.aossie.ogh.oauth.AndroidKeystoreTokenStorage
 import com.ogh.shared.domain.Destination
 import com.ogh.shared.domain.DestinationType
 import org.json.JSONArray

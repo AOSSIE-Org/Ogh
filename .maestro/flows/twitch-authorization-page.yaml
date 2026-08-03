@@ -1,4 +1,4 @@
-appId: com.ogh.app
+appId: org.aossie.ogh
 name: Twitch authorization page loads
 tags: [oauth, network]
 ---

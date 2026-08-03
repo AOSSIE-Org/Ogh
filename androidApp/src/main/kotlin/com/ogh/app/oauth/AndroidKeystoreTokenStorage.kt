@@ -1,4 +1,4 @@
-package com.ogh.app.oauth
+package org.aossie.ogh.oauth
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec

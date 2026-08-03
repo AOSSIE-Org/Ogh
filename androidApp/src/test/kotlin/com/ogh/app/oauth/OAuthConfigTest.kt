@@ -1,4 +1,4 @@
-package com.ogh.app.oauth
+package org.aossie.ogh.oauth
 
 import com.ogh.shared.domain.StreamingProvider
 import org.junit.Test
@@ -16,6 +16,6 @@ class OAuthConfigTest {
 
     @Test
     fun youtube_redirectMatchesDocumentedAndroidCustomSchemeForm() {
-        assertEquals("com.ogh.app:/oauth2callback", OAuthConfig.REDIRECT_URI)
+        assertEquals("org.aossie.ogh:/oauth2callback", OAuthConfig.REDIRECT_URI)
     }
 }

@@ -1,4 +1,4 @@
-package com.ogh.app
+package org.aossie.ogh
 
 import android.app.NotificationChannel
 import android.app.NotificationManager

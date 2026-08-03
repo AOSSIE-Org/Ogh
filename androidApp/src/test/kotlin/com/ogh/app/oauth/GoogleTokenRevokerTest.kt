@@ -1,4 +1,4 @@
-package com.ogh.app.oauth
+package org.aossie.ogh.oauth
 
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer

@@ -26,11 +26,11 @@ check(releaseSigningValues.all { it.isNullOrBlank() } || hasReleaseSigning) {
 }
 
 android {
-    namespace = "com.ogh.app"
+    namespace = "org.aossie.ogh"
     compileSdk = (findProperty("android.compileSdk") as String).toInt()
 
     defaultConfig {
-        applicationId = "com.ogh.app"
+        applicationId = "org.aossie.ogh"
         minSdk = (findProperty("android.minSdk") as String).toInt()
         targetSdk = (findProperty("android.targetSdk") as String).toInt()
         versionCode = appVersionCode

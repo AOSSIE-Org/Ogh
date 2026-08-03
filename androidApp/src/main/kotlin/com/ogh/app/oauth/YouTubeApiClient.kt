@@ -1,4 +1,4 @@
-package com.ogh.app.oauth
+package org.aossie.ogh.oauth
 
 import com.ogh.shared.domain.LatencyMode
 import com.ogh.shared.domain.PrivacyStatus
