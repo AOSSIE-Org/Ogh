@@ -1,7 +1,7 @@
-package com.ogh.app
+package org.aossie.ogh
 
-import com.ogh.app.data.AppSettingsStore
-import com.ogh.app.viewmodel.StreamViewModel
+import org.aossie.ogh.data.AppSettingsStore
+import org.aossie.ogh.viewmodel.StreamViewModel
 import com.ogh.shared.domain.AppSettings
 import com.ogh.shared.domain.AudioSettings
 import com.ogh.shared.domain.LatencyMode

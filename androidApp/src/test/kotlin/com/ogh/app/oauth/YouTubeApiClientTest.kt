@@ -1,4 +1,4 @@
-package com.ogh.app.oauth
+package org.aossie.ogh.oauth
 
 import com.ogh.shared.domain.StreamMetadata
 import okhttp3.mockwebserver.MockResponse

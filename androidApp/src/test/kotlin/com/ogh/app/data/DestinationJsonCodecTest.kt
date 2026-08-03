@@ -1,4 +1,4 @@
-package com.ogh.app.data
+package org.aossie.ogh.data
 
 import com.ogh.shared.domain.Destination
 import org.junit.Test

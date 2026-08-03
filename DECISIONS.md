@@ -191,7 +191,7 @@ requiring Google Play Services.
 
 Track the public YouTube and Twitch client IDs in Android string resources.
 YouTube uses AppAuth Authorization Code with PKCE in the system browser and
-`com.ogh.app:/oauth2callback`, requesting only the `youtube` scope. Twitch uses
+`org.aossie.ogh:/oauth2callback`, requesting only the `youtube` scope. Twitch uses
 its public-client Device Authorization Grant and `channel:read:stream_key`.
 Never embed a client secret.
 

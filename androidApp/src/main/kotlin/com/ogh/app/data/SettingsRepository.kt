@@ -1,4 +1,4 @@
-package com.ogh.app.data
+package org.aossie.ogh.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.Preferences

@@ -1,4 +1,4 @@
-package com.ogh.app.oauth
+package org.aossie.ogh.oauth
 
 import com.ogh.shared.domain.ProviderAccount
 import com.ogh.shared.domain.StreamingProvider

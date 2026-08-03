@@ -1,8 +1,8 @@
-package com.ogh.app.oauth
+package org.aossie.ogh.oauth
 
 import android.content.Context
 import androidx.core.net.toUri
-import com.ogh.app.R
+import org.aossie.ogh.R
 import com.ogh.shared.domain.StreamingProvider
 import net.openid.appauth.AuthorizationServiceConfiguration
 
@@ -16,7 +16,7 @@ import net.openid.appauth.AuthorizationServiceConfiguration
 object OAuthConfig {
 
     /** Redirect URI scheme — must match AndroidManifest.xml intent filter. */
-    const val REDIRECT_URI = "com.ogh.app:/oauth2callback"
+    const val REDIRECT_URI = "org.aossie.ogh:/oauth2callback"
 
     fun getServiceConfig(provider: StreamingProvider): AuthorizationServiceConfiguration {
         return when (provider) {

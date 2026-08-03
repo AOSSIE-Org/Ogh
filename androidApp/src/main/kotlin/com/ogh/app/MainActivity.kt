@@ -1,4 +1,4 @@
-package com.ogh.app
+package org.aossie.ogh
 
 import android.Manifest
 import android.content.ComponentName
@@ -33,16 +33,16 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.ViewModelProvider
-import com.ogh.app.oauth.OAuthConfig
-import com.ogh.app.oauth.OAuthManager
-import com.ogh.app.oauth.TokenManager
-import com.ogh.app.oauth.TwitchDeviceAuthClient
-import com.ogh.app.oauth.YouTubeApiClient
-import com.ogh.app.oauth.GoogleTokenRevoker
-import com.ogh.app.data.SecureDestinationStorage
-import com.ogh.app.data.SettingsRepository
-import com.ogh.app.viewmodel.StreamViewModel
-import com.ogh.app.ui.StreamPreview
+import org.aossie.ogh.oauth.OAuthConfig
+import org.aossie.ogh.oauth.OAuthManager
+import org.aossie.ogh.oauth.TokenManager
+import org.aossie.ogh.oauth.TwitchDeviceAuthClient
+import org.aossie.ogh.oauth.YouTubeApiClient
+import org.aossie.ogh.oauth.GoogleTokenRevoker
+import org.aossie.ogh.data.SecureDestinationStorage
+import org.aossie.ogh.data.SettingsRepository
+import org.aossie.ogh.viewmodel.StreamViewModel
+import org.aossie.ogh.ui.StreamPreview
 import com.ogh.shared.ui.AboutScreen
 import com.ogh.shared.ui.AboutUiState
 import com.ogh.shared.ui.AccountsScreen

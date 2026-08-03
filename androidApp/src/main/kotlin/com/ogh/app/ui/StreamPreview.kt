@@ -1,4 +1,4 @@
-package com.ogh.app.ui
+package org.aossie.ogh.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -26,7 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import com.ogh.app.ScreenCaptureService
+import org.aossie.ogh.ScreenCaptureService
 import com.ogh.shared.domain.StreamState
 import com.ogh.shared.domain.VideoSettings
 import com.ogh.shared.ui.theme.OghColors
