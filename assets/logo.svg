@@ -1,0 +1,14 @@
+<svg width="108" height="108" xmlns="http://www.w3.org/2000/svg" version="1.1">
+<defs>
+<linearGradient y2="0.49123" x2="0.88235" y1="0.49123" x1="0" id="strokeGradient">
+<stop stop-color="#F43F9E" offset="0"/>
+<stop stop-color="#8B5CF6" offset="1"/>
+</linearGradient>
+</defs>
+<g>
+<title>Layer 1</title>
+<path stroke-width="6" id="svg_1" stroke-linejoin="round"
+stroke-linecap="round" stroke="url(#strokeGradient)" fill="none"
+d="m31.88989,23.77259l43.86858,28.80072l-43.98978,26.8505l0.01307,-45.96213l28.48493,18.67813l-20.20076,12.49787l0.02434,-16.06542l5.18257,3.34498"/>
+</g>
+</svg>
