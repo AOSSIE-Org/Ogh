@@ -30,7 +30,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -84,7 +83,6 @@ fun PreviewScreen(
     onStopStream: () -> Unit,
     onPauseVideo: () -> Unit,
     onResumeVideo: () -> Unit,
-    onNavigateSettings: () -> Unit,
 ) {
     val isPreparing = state.streamState == StreamState.PREPARING
     val isStreaming = state.streamState == StreamState.STREAMING
@@ -141,14 +139,7 @@ fun PreviewScreen(
                             .size(38.dp)
                             .align(Alignment.Center),
                     )
-                    if (!isActive) {
-                        TextButton(
-                            onClick = onNavigateSettings,
-                            modifier = Modifier.align(Alignment.CenterEnd).height(48.dp),
-                        ) {
-                            Text("Settings")
-                        }
-                    } else {
+                    if (isActive) {
                         LiveBadge(
                             streamState = state.streamState,
                             modifier = Modifier.align(Alignment.CenterEnd),

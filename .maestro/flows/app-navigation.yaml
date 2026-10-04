@@ -70,7 +70,7 @@ tags: [smoke]
 - assertVisible: "About"
 - tapOn: "←"
 - assertVisible: "Settings"
-- tapOn: "Preview"
+- tapOn: "Stream"
 - assertVisible: "Screen"
 - assertVisible: "Camera"
 - assertVisible: "Mic"
@@ -118,7 +118,7 @@ tags: [smoke]
 - tapOn:
     text: "Lock Orientation"
     point: "90%,50%"
-- tapOn: "Preview"
+- tapOn: "Stream"
 - setOrientation: LANDSCAPE_LEFT
 - assertVisible: "Screen"
 - assertVisible: "Camera"
