@@ -82,9 +82,7 @@ fun SettingsScreen(
     onNavigateDestinations: () -> Unit,
     onAddDestination: () -> Unit,
     onNavigateAccounts: () -> Unit,
-    onNavigateAbout: () -> Unit,
     onConnectProvider: (StreamingProvider) -> Unit,
-    onBack: () -> Unit,
 ) {
     val hasDestinations = destinations.isNotEmpty()
     val enabledDestinations = destinations.count(Destination::enabled)
@@ -96,23 +94,13 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(
-                    onClick = onBack,
-                    enabled = hasDestinations,
-                    modifier = Modifier.height(48.dp),
-                ) {
-                    Text("Preview")
-                }
                 Text(
                     text = if (hasDestinations) "Settings" else "Set up Ogh",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = 48.dp),
                 )
             }
         },
@@ -146,7 +134,6 @@ fun SettingsScreen(
                 } else {
                     onAddDestination
                 },
-                onNavigateAbout = onNavigateAbout,
             )
 
             SettingsSection(title = "Video") {
@@ -324,7 +311,6 @@ private fun NavigationCard(
     enabledDestinationCount: Int,
     onNavigateAccounts: () -> Unit,
     onNavigateDestinations: () -> Unit,
-    onNavigateAbout: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -345,12 +331,6 @@ private fun NavigationCard(
                 else -> "$enabledDestinationCount enabled of $destinationCount"
             },
             onClick = onNavigateDestinations,
-        )
-        HorizontalDivider(Modifier.padding(horizontal = 16.dp), 0.5.dp, OghColors.Outline)
-        SettingsNavigationRow(
-            label = "About",
-            subtitle = "Version, privacy, and license",
-            onClick = onNavigateAbout,
         )
     }
 }

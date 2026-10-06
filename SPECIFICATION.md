@@ -233,19 +233,20 @@ License 2.0 notice. The build has no hardcoded repository fallback.
 
 ## 4. Navigation and visual system
 
-Navigation is a shallow state machine rather than a navigation framework:
+Navigation uses a clear three-section bottom navigation bar (Stream, Settings, About):
 
 ```text
-Preview ↔ Settings
-          ├── Platforms
-          ├── Destinations
-          │   └── Add/Edit Destination
-          └── About
+Stream ↔ Settings ↔ About
+           ├── Platforms
+           └── Destinations
+               └── Add/Edit Destination
 ```
 
-`MainActivity` owns the current `Screen`. Compose `BackHandler` and the visible
-back action return to the preceding logical screen. OAuth redirects return to
-the activity through AppAuth's exported redirect receiver.
+`MainActivity` owns the current `Screen` and renders `OghNavigationBar` across
+root screens (`PREVIEW`, `SETTINGS`, `ABOUT`). The navigation bar is hidden while
+`StreamState.locksConfiguration` is true and during child forms. Compose `BackHandler`
+and the visible back action return to the preceding logical screen. OAuth redirects
+return to the activity through AppAuth's exported redirect receiver.
 
 Screens, the `Screen` enum, theme tokens, and the in-app Ogh mark are Compose
 Multiplatform code in `shared/src/commonMain`. They accept immutable values and
@@ -253,7 +254,7 @@ callbacks. The Android activity is the platform entry point: it performs
 lifecycle-aware flow collection and supplies intents, document selection,
 permissions, build metadata, and other Android actions.
 
-Navigation away from Preview is rejected while
+Navigation away from Stream is rejected while
 `StreamState.locksConfiguration` is true. This keeps account, destination,
 encoding, audio, metadata, and pause-slate inputs stable while the dedicated
 live source controls remain usable.

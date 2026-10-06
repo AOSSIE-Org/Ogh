@@ -22,10 +22,16 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,6 +57,8 @@ import com.ogh.shared.ui.PreviewUiState
 import com.ogh.shared.ui.DestinationFormScreen
 import com.ogh.shared.ui.DestinationsScreen
 import com.ogh.shared.ui.SettingsScreen
+import com.ogh.shared.ui.navigation.NavTab
+import com.ogh.shared.ui.navigation.OghNavigationBar
 import com.ogh.shared.ui.navigation.Screen
 import com.ogh.shared.ui.theme.OghTheme
 import com.ogh.shared.domain.StreamingProvider
@@ -92,6 +100,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private var currentScreen by mutableStateOf(Screen.PREVIEW)
+    private var previousRootScreen by mutableStateOf(Screen.PREVIEW)
     private var editDestinationId by mutableStateOf<String?>(null)
     private var previewServiceBound = false
     private var previewServiceReady by mutableStateOf(false)
@@ -348,6 +357,7 @@ class MainActivity : ComponentActivity() {
         } else {
             Screen.PREVIEW
         }
+        previousRootScreen = currentScreen
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -388,6 +398,12 @@ class MainActivity : ComponentActivity() {
             }
 
             OghTheme {
+                val showNavigationBar = !streamState.locksConfiguration && currentScreen in setOf(
+                    Screen.PREVIEW,
+                    Screen.SETTINGS,
+                    Screen.ABOUT,
+                )
+
                 // Handle system back gesture / button properly
                 BackHandler(
                     enabled = currentScreen != Screen.PREVIEW &&
@@ -396,103 +412,133 @@ class MainActivity : ComponentActivity() {
                     navigateBack()
                 }
 
-                when (currentScreen) {
-                    Screen.PREVIEW -> PreviewScreen(
-                        state = PreviewUiState(
-                            streamState = streamState,
-                            statusMessage = statusMessage,
-                            stats = streamingStats,
-                            destinations = destinations,
-                            videoSettings = videoSettings,
-                            audioSettings = audioSettings,
-                            availableVideoSources = availableVideoSources,
-                            isSourceSwitching = isSourceSwitching,
-                        ),
-                        previewContent = { modifier ->
-                            StreamPreview(
-                                videoSettings = videoSettings,
-                                streamState = streamState,
-                                enabledDestinationCount = destinations.count { it.enabled },
-                                serviceReady = previewServiceReady,
-                                modifier = modifier,
+                Scaffold(
+                    bottomBar = {
+                        if (showNavigationBar) {
+                            OghNavigationBar(
+                                currentScreen = currentScreen,
+                                canNavigateToStream = destinations.isNotEmpty(),
+                                onTabSelected = { tab ->
+                                    if (!streamState.locksConfiguration) {
+                                        val targetScreen = when (tab) {
+                                            NavTab.STREAM -> Screen.PREVIEW
+                                            NavTab.SETTINGS -> Screen.SETTINGS
+                                            NavTab.ABOUT -> Screen.ABOUT
+                                        }
+                                        if (targetScreen != currentScreen) {
+                                            if (targetScreen == Screen.ABOUT) {
+                                                previousRootScreen = currentScreen
+                                            }
+                                            currentScreen = targetScreen
+                                        }
+                                    }
+                                },
                             )
-                        },
-                        onSelectScreen = { onVideoSourceRequested(VideoSource.SCREEN) },
-                        onSelectCamera = ::onCameraControlRequested,
-                        onToggleMicrophone = ::onMicrophoneToggleRequested,
-                        onToggleSystemAudio = ::onSystemAudioToggleRequested,
-                        onStartStream = { onStartStreamRequested() },
-                        onStopStream = { onStopStreamRequested() },
-                        onPauseVideo = viewModel::pauseVideo,
-                        onResumeVideo = viewModel::resumeVideo,
-                        onNavigateSettings = { navigateToConfiguration(Screen.SETTINGS) },
-                    )
-                    Screen.DESTINATIONS -> DestinationsScreen(
-                        destinations = destinations,
-                        onToggleDestination = viewModel::toggleDestination,
-                        onDeleteDestination = viewModel::removeDestination,
-                        onBack = { navigateBack() },
-                        onAddDestination = { currentScreen = Screen.ADD_DESTINATION },
-                        onEditDestination = { id ->
-                            editDestinationId = id
-                            currentScreen = Screen.EDIT_DESTINATION
-                        },
-                    )
-                    Screen.ADD_DESTINATION -> DestinationFormScreen(
-                        onSubmit = { _, name, url, key, colorHex ->
-                            viewModel.addDestination(name, url, key, colorHex)
-                        },
-                        onBack = { navigateBack() },
-                    )
-                    Screen.EDIT_DESTINATION -> DestinationFormScreen(
-                        existing = editDestinationId?.let(viewModel.destinationRepository::getById),
-                        onSubmit = { existing, name, url, key, colorHex ->
-                            if (existing == null) {
-                                "Destination not found"
-                            } else {
-                                viewModel.updateDestination(
-                                    existing.id,
-                                    name,
-                                    url,
-                                    key,
-                                    colorHex,
-                                )
-                            }
-                        },
-                        onBack = { navigateBack() },
-                    )
-                    Screen.SETTINGS -> SettingsScreen(
-                        videoSettings = videoSettings,
-                        metadata = streamMetadata,
-                        destinations = destinations,
-                        onVideoSettingsChanged = viewModel::updateVideoSettings,
-                        onMetadataChanged = viewModel::updateStreamMetadata,
-                        onChoosePauseImage = { pauseImageLauncher.launch(arrayOf("image/*")) },
-                        onUseDefaultPauseImage = { clearPauseImage() },
-                        onNavigateDestinations = { navigateToConfiguration(Screen.DESTINATIONS) },
-                        onAddDestination = { navigateToConfiguration(Screen.ADD_DESTINATION) },
-                        onNavigateAccounts = { navigateToConfiguration(Screen.ACCOUNTS) },
-                        onNavigateAbout = { currentScreen = Screen.ABOUT },
-                        onConnectProvider = ::connectProvider,
-                        onBack = { navigateBack() },
-                    )
-                    Screen.ACCOUNTS -> AccountsScreen(
-                        connectedAccounts = connectedAccounts,
-                        onConnect = { provider -> connectProvider(provider) },
-                        onDisconnect = ::disconnectProvider,
-                        onBack = { navigateBack() },
-                    )
-                    Screen.ABOUT -> AboutScreen(
-                        state = AboutUiState(
-                            versionName = BuildConfig.VERSION_NAME,
-                            buildType = if (BuildConfig.DEBUG) "Debug" else "Release",
-                            platform = "Android · Compose Multiplatform",
-                            minimumPlatform = "Android 7.0 (API 24)",
-                            repositoryUrl = BuildConfig.REPO_URL,
-                        ),
-                        onOpenUrl = ::openExternalUrl,
-                        onBack = { navigateBack() },
-                    )
+                        }
+                    },
+                ) { innerPadding ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
+                            .consumeWindowInsets(innerPadding),
+                    ) {
+                        when (currentScreen) {
+                            Screen.PREVIEW -> PreviewScreen(
+                                state = PreviewUiState(
+                                    streamState = streamState,
+                                    statusMessage = statusMessage,
+                                    stats = streamingStats,
+                                    destinations = destinations,
+                                    videoSettings = videoSettings,
+                                    audioSettings = audioSettings,
+                                    availableVideoSources = availableVideoSources,
+                                    isSourceSwitching = isSourceSwitching,
+                                ),
+                                previewContent = { modifier ->
+                                    StreamPreview(
+                                        videoSettings = videoSettings,
+                                        streamState = streamState,
+                                        enabledDestinationCount = destinations.count { it.enabled },
+                                        serviceReady = previewServiceReady,
+                                        modifier = modifier,
+                                    )
+                                },
+                                onSelectScreen = { onVideoSourceRequested(VideoSource.SCREEN) },
+                                onSelectCamera = ::onCameraControlRequested,
+                                onToggleMicrophone = ::onMicrophoneToggleRequested,
+                                onToggleSystemAudio = ::onSystemAudioToggleRequested,
+                                onStartStream = { onStartStreamRequested() },
+                                onStopStream = { onStopStreamRequested() },
+                                onPauseVideo = viewModel::pauseVideo,
+                                onResumeVideo = viewModel::resumeVideo,
+                            )
+                            Screen.DESTINATIONS -> DestinationsScreen(
+                                destinations = destinations,
+                                onToggleDestination = viewModel::toggleDestination,
+                                onDeleteDestination = viewModel::removeDestination,
+                                onBack = { navigateBack() },
+                                onAddDestination = { currentScreen = Screen.ADD_DESTINATION },
+                                onEditDestination = { id ->
+                                    editDestinationId = id
+                                    currentScreen = Screen.EDIT_DESTINATION
+                                },
+                            )
+                            Screen.ADD_DESTINATION -> DestinationFormScreen(
+                                onSubmit = { _, name, url, key, colorHex ->
+                                    viewModel.addDestination(name, url, key, colorHex)
+                                },
+                                onBack = { navigateBack() },
+                            )
+                            Screen.EDIT_DESTINATION -> DestinationFormScreen(
+                                existing = editDestinationId?.let(viewModel.destinationRepository::getById),
+                                onSubmit = { existing, name, url, key, colorHex ->
+                                    if (existing == null) {
+                                        "Destination not found"
+                                    } else {
+                                        viewModel.updateDestination(
+                                            existing.id,
+                                            name,
+                                            url,
+                                            key,
+                                            colorHex,
+                                        )
+                                    }
+                                },
+                                onBack = { navigateBack() },
+                            )
+                            Screen.SETTINGS -> SettingsScreen(
+                                videoSettings = videoSettings,
+                                metadata = streamMetadata,
+                                destinations = destinations,
+                                onVideoSettingsChanged = viewModel::updateVideoSettings,
+                                onMetadataChanged = viewModel::updateStreamMetadata,
+                                onChoosePauseImage = { pauseImageLauncher.launch(arrayOf("image/*")) },
+                                onUseDefaultPauseImage = { clearPauseImage() },
+                                onNavigateDestinations = { navigateToConfiguration(Screen.DESTINATIONS) },
+                                onAddDestination = { navigateToConfiguration(Screen.ADD_DESTINATION) },
+                                onNavigateAccounts = { navigateToConfiguration(Screen.ACCOUNTS) },
+                                onConnectProvider = ::connectProvider,
+                            )
+                            Screen.ACCOUNTS -> AccountsScreen(
+                                connectedAccounts = connectedAccounts,
+                                onConnect = { provider -> connectProvider(provider) },
+                                onDisconnect = ::disconnectProvider,
+                                onBack = { navigateBack() },
+                            )
+                            Screen.ABOUT -> AboutScreen(
+                                state = AboutUiState(
+                                    versionName = BuildConfig.VERSION_NAME,
+                                    buildType = if (BuildConfig.DEBUG) "Debug" else "Release",
+                                    platform = "Android · Compose Multiplatform",
+                                    minimumPlatform = "Android 7.0 (API 24)",
+                                    repositoryUrl = BuildConfig.REPO_URL,
+                                ),
+                                onOpenUrl = ::openExternalUrl,
+                                onBack = { navigateBack() },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -532,7 +578,12 @@ class MainActivity : ComponentActivity() {
     private fun navigateBack() {
         currentScreen = when (currentScreen) {
             Screen.ADD_DESTINATION, Screen.EDIT_DESTINATION -> Screen.DESTINATIONS
-            Screen.DESTINATIONS, Screen.ACCOUNTS, Screen.ABOUT -> Screen.SETTINGS
+            Screen.DESTINATIONS, Screen.ACCOUNTS -> Screen.SETTINGS
+            Screen.ABOUT -> if (viewModel.destinationRepository.count() > 0 && previousRootScreen != Screen.ABOUT) {
+                previousRootScreen
+            } else {
+                Screen.SETTINGS
+            }
             Screen.SETTINGS -> if (viewModel.destinationRepository.count() > 0) {
                 Screen.PREVIEW
             } else {
