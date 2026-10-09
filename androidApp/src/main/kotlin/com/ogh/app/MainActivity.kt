@@ -167,7 +167,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                else -> {
+                continuesGoLive(viewModel.streamState.value) -> {
                     resolveEndpointsAndStartService(
                         result.resultCode,
                         result.data,
@@ -178,7 +178,7 @@ class MainActivity : ComponentActivity() {
             if (pendingAudio != null) {
                 pendingLiveAudioSettings = null
                 viewModel.reportLiveAudioFailure("Screen capture permission denied")
-            } else if (!isLiveSwitch) {
+            } else if (!isLiveSwitch && continuesGoLive(viewModel.streamState.value)) {
                 viewModel.preparationFailed("Screen capture permission denied", isError = false)
             }
             Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show()
@@ -206,6 +206,7 @@ class MainActivity : ComponentActivity() {
 
             return@registerForActivityResult
         }
+        if (!continuesGoLive(viewModel.streamState.value)) return@registerForActivityResult
 
         if (granted) {
             checkCameraPermissionAndContinue()
@@ -233,6 +234,7 @@ class MainActivity : ComponentActivity() {
             }
             return@registerForActivityResult
         }
+        if (!continuesGoLive(viewModel.streamState.value)) return@registerForActivityResult
         if (granted) {
             requestProjectionOrStart()
         } else {
@@ -265,7 +267,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { _ ->
         // Continue regardless — notifications are nice-to-have, not blocking
-        checkAudioPermissionAndStart()
+        if (continuesGoLive(viewModel.streamState.value)) checkAudioPermissionAndStart()
     }
 
     /** Handles OAuth redirect after user authenticates in browser. */
@@ -343,6 +345,7 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
+        savedInstanceState?.let(::restorePendingRequests)
 
         val destinationStorage = SecureDestinationStorage(applicationContext)
         viewModel.destinationRepository.restoreManualDestinations(destinationStorage.load())
@@ -569,6 +572,36 @@ class MainActivity : ComponentActivity() {
         if (::oauthManager.isInitialized) {
             oauthManager.dispose()
         }
+    }
+
+    /**
+     * Keeps permission and consent requests attributable after recreation, so a
+     * result for a preview or live-session request is never mistaken for Go Live.
+     */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_PENDING_CAMERA_SOURCE, pendingCameraSource?.name)
+        outState.putBoolean(STATE_PENDING_LIVE_SCREEN_SWITCH, pendingLiveScreenSwitch)
+        pendingLiveAudioSettings?.let { settings ->
+            outState.putBooleanArray(
+                STATE_PENDING_LIVE_AUDIO,
+                booleanArrayOf(settings.enableMicrophone, settings.enableSystemAudio),
+            )
+        }
+    }
+
+    private fun restorePendingRequests(state: Bundle) {
+        pendingCameraSource = state.getString(STATE_PENDING_CAMERA_SOURCE)
+            ?.let { name -> VideoSource.entries.firstOrNull { it.name == name } }
+        pendingLiveScreenSwitch = state.getBoolean(STATE_PENDING_LIVE_SCREEN_SWITCH)
+        pendingLiveAudioSettings = state.getBooleanArray(STATE_PENDING_LIVE_AUDIO)
+            ?.takeIf { it.size == 2 }
+            ?.let { (microphone, systemAudio) ->
+                viewModel.audioSettings.value.copy(
+                    enableMicrophone = microphone,
+                    enableSystemAudio = systemAudio,
+                )
+            }
     }
 
     /**
@@ -1083,8 +1116,17 @@ class MainActivity : ComponentActivity() {
         const val TOKEN_EXPIRY_SKEW_MS = 60_000L
         const val SERVICE_START_ATTEMPTS = 30
         const val SERVICE_START_POLL_MS = 100L
+        const val STATE_PENDING_CAMERA_SOURCE = "pending_camera_source"
+        const val STATE_PENDING_LIVE_SCREEN_SWITCH = "pending_live_screen_switch"
+        const val STATE_PENDING_LIVE_AUDIO = "pending_live_audio"
     }
 }
+
+/**
+ * Permission and consent results may advance the Go Live chain only while a
+ * user-initiated start is preparing; any other result must not start a session.
+ */
+internal fun continuesGoLive(state: StreamState): Boolean = state == StreamState.PREPARING
 
 /** Returns whether the selected capture sources require Android audio permission. */
 internal fun requiresRecordAudio(audioSettings: com.ogh.shared.domain.AudioSettings): Boolean =

@@ -309,6 +309,36 @@ class StreamViewModelTest {
     }
 
     @Test
+    fun startPreparedStream_withoutGoLiveRequest_isIgnored() {
+        val vm = StreamViewModel()
+        vm.addDestination("Primary", "rtmps://example.com/live", "key")
+
+        vm.startPreparedStream()
+
+        assertEquals(StreamState.IDLE, vm.streamState.value)
+        assertEquals("Ready to stream", vm.statusMessage.value)
+    }
+
+    @Test
+    fun startPreparedStream_duringLiveSession_doesNotRestart() {
+        val vm = StreamViewModel()
+        vm.onConnectionSuccess()
+
+        vm.startPreparedStream()
+
+        assertEquals(StreamState.STREAMING, vm.streamState.value)
+        assertEquals("Live", vm.statusMessage.value)
+    }
+
+    @Test
+    fun permissionResults_continueGoLiveOnlyWhilePreparing() {
+        assertTrue(continuesGoLive(StreamState.PREPARING))
+        StreamState.entries
+            .filterNot { it == StreamState.PREPARING }
+            .forEach { state -> assertFalse(continuesGoLive(state), state.name) }
+    }
+
+    @Test
     fun audioPermission_isRequiredForEveryActiveAudioSource() {
         assertFalse(
             requiresRecordAudio(AudioSettings(enableMicrophone = false, enableSystemAudio = false)),

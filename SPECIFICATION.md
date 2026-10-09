@@ -317,6 +317,14 @@ endpoints, releases partial service resources, and returns an actionable status.
 Provider broadcasts are created only after capture consent to avoid abandoned
 remote broadcasts when permission is cancelled.
 
+Only a **Go Live** tap starts a session. Permission and consent results advance
+the start sequence only while the state is `PREPARING`, and
+`startPreparedStream` refuses to run in any other state. Pending preview-camera,
+live-screen-switch, and live-audio requests are kept in the activity's saved
+instance state, so a result delivered after activity recreation (for example a
+dark-mode, locale, or font-size change while a permission dialog is open)
+completes the request the user actually made instead of starting a broadcast.
+
 One destination failure does not intentionally terminate healthy outputs. The
 ViewModel reports terminal connection failure only after all configured outputs
 have failed/disconnected. A user-requested stop is tracked so later disconnect
@@ -676,6 +684,8 @@ A production-ready change preserves all applicable statements below:
 - Persisted settings load before **Go Live** can begin and survive process death.
 - **Go Live** cannot be double-triggered while permissions/API/encoder work is
   running.
+- A permission result delivered after activity recreation never starts a
+  session unless **Go Live** was tapped.
 - Camera and microphone permissions are requested only for selected sources.
 - Playback capture requests MediaProjection only on Android 10+.
 - The foreground service starts with only selected type flags and remains
