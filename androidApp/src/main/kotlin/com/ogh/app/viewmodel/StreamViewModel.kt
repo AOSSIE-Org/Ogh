@@ -280,8 +280,15 @@ class StreamViewModel(
     /**
      * Called after the user grants screen capture permission.
      * Prepares the service and starts streaming to all enabled destinations.
+     *
+     * Ignored unless [beginPreparing] accepted a Go Live request, so a stray
+     * permission result can never start capture or publishing on its own.
      */
     fun startPreparedStream(resultCode: Int? = null, data: Intent? = null) {
+        if (_streamState.value != StreamState.PREPARING) {
+            log(Subsystems.STREAMER, LogLevel.WARNING, "Ignored stream start without a Go Live request")
+            return
+        }
         val service = ScreenCaptureService.instance ?: run {
             _streamState.value = StreamState.ERROR
             _statusMessage.value = "Service not available"

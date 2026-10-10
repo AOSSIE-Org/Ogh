@@ -24,6 +24,10 @@ Notable user-visible changes are recorded here. The format follows
 
 ### Changed
 
+- Fixed a camera, audio, or screen-capture permission result that arrived after
+  the activity was recreated (for example by a dark-mode change while the
+  dialog was open) starting a broadcast without **Go Live**. The result now
+  completes the original request, such as selecting the camera preview.
 - Fixed landscape camera streams remaining inside a portrait encoder canvas.
   Camera encoding now keeps stable landscape dimensions while physical
   orientation and preview counter-rotation are applied independently.
