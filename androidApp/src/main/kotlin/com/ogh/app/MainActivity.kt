@@ -1132,10 +1132,13 @@ internal fun continuesGoLive(state: StreamState): Boolean = state == StreamState
 internal fun requiresRecordAudio(audioSettings: com.ogh.shared.domain.AudioSettings): Boolean =
     audioSettings.enableMicrophone || audioSettings.enableSystemAudio
 
-/** Applies the persisted orientation preference across the entire app lifecycle. */
+/**
+ * Locks the interface to portrait, matching the manifest launch orientation, until
+ * persisted settings load; only an explicit opt-out lets it follow the device.
+ */
 internal fun requestedOrientationFor(lockOrientation: Boolean, settingsLoaded: Boolean): Int =
-    if (settingsLoaded && lockOrientation) {
-        ActivityInfo.SCREEN_ORIENTATION_LOCKED
+    if (lockOrientation || !settingsLoaded) {
+        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
     } else {
         ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }

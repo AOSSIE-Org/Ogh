@@ -21,7 +21,7 @@ data class AppSettings(
  * @property resolution Display resolution preset.
  * @property fps Frames per second.
  * @property bitrate Video bitrate in bits per second.
- * @property lockOrientation Whether to lock the app to its current orientation.
+ * @property lockOrientation Whether to keep the app interface in portrait.
  * @property keepScreenAwake Whether to keep the screen on during streaming.
  */
 data class VideoSettings(
