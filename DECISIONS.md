@@ -486,3 +486,29 @@ Do not rebuild H.264 or RTMP clients when physical orientation changes.
 Landscape camera output uses the full landscape canvas. Portrait camera content
 remains upright inside the stable landscape canvas. Preview behaviour remains
 independent and unchanged.
+
+## ADR-018: Portrait interface lock declared at launch
+
+Status: accepted
+
+### Context
+
+`SCREEN_ORIENTATION_LOCKED` freezes whatever rotation the display has when it
+is applied, and the preference was applied only after DataStore loaded. Opening
+Ogh while the device or the previous app was in landscape therefore locked the
+interface in landscape. The camera preview counter-rotation assumes a portrait
+interface.
+
+### Decision
+
+Declare `android:screenOrientation="portrait"` on `MainActivity` so it launches
+in portrait before any app code runs. Keep requesting portrait while settings
+load and while **Lock orientation** is enabled; request `UNSPECIFIED` only after
+settings load with the lock disabled. Do not use `SCREEN_ORIENTATION_LOCKED`.
+
+### Consequences
+
+The default interface is deterministic regardless of the prior orientation.
+Users who disable the lock may see a portrait launch before the interface
+follows the device. Android 16 and newer can ignore orientation requests on
+large screens, so the preview must still be correct in a landscape interface.

@@ -160,7 +160,7 @@ screen until a destination exists and is not reachable during a session.
 | Resolution | 360p, 480p, 540p, 720p, 1080p, 1440p, 2160p; 720p default |
 | Frame rate | 15, 24, 25, 30, 50, 60 fps; 30 default |
 | Bitrate | 0.8, 1.5, 2.5, 4.5, 6, 8, 12, 20, 35 Mbps; 2.5 Mbps default |
-| Lock orientation | enabled by default; locks only the app interface throughout its lifecycle |
+| Lock orientation | enabled by default; keeps only the app interface in portrait throughout its lifecycle |
 | Keep screen awake | enabled by default |
 | Pause image | bundled Ogh logo by default or a local document URI |
 
@@ -179,9 +179,13 @@ orientation rather than Android display rotation. The preview viewport follows
 the UI surface while its camera image follows physical orientation; live frames
 remain upright and center-crop into the portrait/landscape canvas selected at
 session preparation. Fill scaling preserves aspect ratio rather than stretching
-or letterboxing. **Lock orientation** locks only the app interface as soon as
-persisted settings load and remains effective whether idle or live. It does not
-control camera capture. Screen capture orientation is handled by MediaProjection.
+or letterboxing. **Lock orientation** keeps only the app interface in portrait,
+whether idle or live, regardless of the device's or previous app's orientation
+when Ogh opens. The activity launches in portrait from its manifest declaration
+and stays there while persisted settings load; only a user who disabled the
+lock lets the interface follow the device afterwards. It does not control camera
+capture. Screen capture orientation is handled by MediaProjection. Android 16
+and newer may ignore the portrait request on large screens.
 
 #### Audio
 

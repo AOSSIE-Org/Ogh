@@ -11,13 +11,17 @@ import kotlin.test.assertTrue
 class CameraSourceCatalogTest {
 
     @Test
-    fun orientationLock_appliesOnlyAfterPersistedSettingsLoad() {
+    fun orientationLock_keepsPortraitUntilUserOptsOut() {
         assertEquals(
-            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED,
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
             requestedOrientationFor(lockOrientation = true, settingsLoaded = false),
         )
         assertEquals(
-            ActivityInfo.SCREEN_ORIENTATION_LOCKED,
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
+            requestedOrientationFor(lockOrientation = false, settingsLoaded = false),
+        )
+        assertEquals(
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
             requestedOrientationFor(lockOrientation = true, settingsLoaded = true),
         )
         assertEquals(

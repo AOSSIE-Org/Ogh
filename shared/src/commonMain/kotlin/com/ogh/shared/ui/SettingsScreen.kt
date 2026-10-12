@@ -151,7 +151,7 @@ fun SettingsScreen(
                 )
                 ToggleSetting(
                     label = "Lock Orientation",
-                    description = "Keep the app in its current orientation",
+                    description = "Keep the app in portrait",
                     checked = videoSettings.lockOrientation,
                     onChanged = {
                         onVideoSettingsChanged(videoSettings.copy(lockOrientation = it))

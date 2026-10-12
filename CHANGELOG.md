@@ -24,6 +24,9 @@ Notable user-visible changes are recorded here. The format follows
 
 ### Changed
 
+- **Lock orientation** now always keeps the interface in portrait. Previously it
+  froze whatever orientation the screen had when Ogh opened, so opening Ogh
+  from a landscape app could leave it locked in landscape.
 - Fixed a camera, audio, or screen-capture permission result that arrived after
   the activity was recreated (for example by a dark-mode change while the
   dialog was open) starting a broadcast without **Go Live**. The result now

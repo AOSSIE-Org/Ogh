@@ -65,7 +65,7 @@ provide an application client secret.
    RTMP target; Preview becomes available once a destination exists.
 2. In Settings, enter stream details and choose quality, orientation, and the
    optional pause image.
-   Choose stream quality and whether the app interface orientation is locked.
+   Choose stream quality and whether the app interface stays in portrait.
    The orientation lock affects the interface only, not camera-frame orientation.
 3. Open Preview, choose **Screen** or **Camera**, select **Microphone** and/or
    **System Audio**, then tap **Go Live** and grant the permissions Android
