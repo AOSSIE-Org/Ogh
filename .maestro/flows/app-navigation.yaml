@@ -123,6 +123,6 @@ tags: [smoke]
 - assertVisible: "Screen"
 - assertVisible: "Camera"
 - assertVisible: "Mic"
-- assertVisible: "Audio"
+- assertVisible: "System Audio"
 - assertVisible: "Go Live"
 - setOrientation: PORTRAIT

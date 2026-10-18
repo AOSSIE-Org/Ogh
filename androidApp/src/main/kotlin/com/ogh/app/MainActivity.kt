@@ -475,6 +475,7 @@ class MainActivity : ComponentActivity() {
                                 onStopStream = { onStopStreamRequested() },
                                 onPauseVideo = viewModel::pauseVideo,
                                 onResumeVideo = viewModel::resumeVideo,
+                                onOpenDestinations = { navigateToConfiguration(Screen.DESTINATIONS) },
                             )
                             Screen.DESTINATIONS -> DestinationsScreen(
                                 destinations = destinations,

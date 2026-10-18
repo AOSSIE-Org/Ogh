@@ -57,13 +57,19 @@ manual RTMP destination exists. Preview contains:
 - the centered Ogh mark, a Settings action while idle, and a preparation/live/
   video-hidden badge;
 - a compact status overlay with duration and bitrate during a session attempt;
+- a **Sending to** strip naming each enabled destination with its color, or
+  **No destination enabled** with a **Set up** action that opens Destinations
+  while configuration is unlocked;
 - persistent **Screen** and **Camera** source controls;
-- pre-live **Microphone** and **System Audio** selections; and
-- **Go Live** while stopped, or **Hide Video**/**Show Video** and **Stop** while
-  live.
+- pre-live **Mic** and **System Audio** selections; and
+- a gradient **Go Live** while stopped, or **Hide Video**/**Show Video** and
+  **Stop** while live. **Stop** opens an **End broadcast?** confirmation whose
+  **End Stream** action stops publishing and whose **Keep Streaming** action
+  dismisses it; the dialog closes on its own if the session ends first.
 
+Source, audio, and live controls pair a code-drawn icon with a text label.
 Controls occupy two rows when the UI is portrait and one row when the UI is
-landscape. Audio selections are available only before preparation; they remain
+landscape; the destination strip sits above them in both layouts. Audio selections are available only before preparation; they remain
 visible as selected/unselected buttons and persist like other settings.
 
 There is no camera dropdown. **Camera** selects the first compatible facing;
@@ -135,8 +141,14 @@ Only manual destinations are serialized to the manual-destination store.
 
 ### 3.3 Provider platforms
 
-Platforms lists YouTube and Twitch. A provider is either disconnected, in a
-connection operation, or connected with its locally retained account label.
+Platforms lists YouTube and Twitch, each identified by its code-drawn brand
+icon (`ProviderLogo.kt`) beside its name. The onboarding **Connect a platform**
+buttons show only the icon; their accessible names remain **Connect YouTube**
+and **Connect Twitch**. Provider destinations use the same icon in place of
+the color dot in the Destinations list, where it fades while the destination is
+disabled, and in the Preview **Sending to** strip. A provider is either
+disconnected, in a connection operation, or connected with its locally retained
+account label.
 Connecting creates exactly one provider-managed destination. Disconnecting
 removes that destination and the local account record after attempting provider
 revocation.
@@ -270,7 +282,9 @@ Ogh uses one dark Material 3 theme:
 - primary pink-purple `#D946EF`, light `#F0ABFC`, deep `#701A75`;
 - pink-to-purple logo gradient from `#F43F9E` to `#8B5CF6`;
 - restrained 2–10dp corner radii, no decorative elevation, and compact 16dp screen
-  gutters; and
+  gutters, with spacing drawn from the shared `OghSpacing` scale;
+- dependency-free, code-drawn line icons (`OghIcons.kt`) that always accompany
+  a text label; and
 - green success, amber warning, and red error states that never rely on color
   alone.
 

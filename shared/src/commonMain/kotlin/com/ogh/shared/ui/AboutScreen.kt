@@ -251,10 +251,6 @@ private fun LinkRow(
                 color = OghColors.VioletLight,
             )
         }
-        Text(
-            text = "›",
-            style = MaterialTheme.typography.titleLarge,
-            color = OghColors.OnSurfaceMuted,
-        )
+        OghIconImage(OghIcon.CHEVRON_RIGHT, tint = OghColors.OnSurfaceMuted)
     }
 }

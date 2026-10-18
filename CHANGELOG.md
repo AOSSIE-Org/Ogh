@@ -27,6 +27,14 @@ Notable user-visible changes are recorded here. The format follows
 - **Lock orientation** now always keeps the interface in portrait. Previously it
   froze whatever orientation the screen had when Ogh opened, so opening Ogh
   from a landscape app could leave it locked in landscape.
+- Preview controls now pair icons with labels, show which destinations will
+  receive the stream, explain a disabled **Go Live** with a **Set up** shortcut,
+  pulse the **LIVE** badge, and ask for confirmation before **Stop** ends a
+  broadcast. The landscape system-audio control is now labelled
+  **System Audio**, matching portrait.
+- YouTube and Twitch now appear with their brand icons on the connection
+  buttons, the Platforms list, the Destinations list, and the Preview
+  destination strip.
 - Fixed a camera, audio, or screen-capture permission result that arrived after
   the activity was recreated (for example by a dark-mode change while the
   dialog was open) starting a broadcast without **Go Live**. The result now
