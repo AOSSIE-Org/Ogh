@@ -161,12 +161,63 @@ class YouTubeApiClient(
         httpClient.newCall(request).execute().use { response ->
             val responseBody = response.body.string()
             if (!response.isSuccessful) {
-                throw YouTubeApiException("YouTube request failed (HTTP ${response.code})")
+                throw YouTubeApiException(youTubeErrorMessage(response.code, responseBody))
             }
             runCatching { JSONObject(responseBody.ifEmpty { "{}" }) }
                 .getOrElse { throw YouTubeApiException("YouTube returned an invalid response") }
         }
 }
+
+/**
+ * Builds a user-facing message for a failed YouTube request.
+ *
+ * Only Google's machine-readable `error.errors[0].reason` is read. Google's
+ * free-text `message` can describe the channel or account, so it is never shown.
+ */
+private fun youTubeErrorMessage(httpCode: Int, responseBody: String): String {
+    val reason = youTubeErrorReason(responseBody)
+    return YOUTUBE_REASON_MESSAGES[reason] ?: when {
+        httpCode == 401 -> RECONNECT_YOUTUBE_MESSAGE
+        reason != null -> "YouTube request failed (HTTP $httpCode: $reason)"
+        else -> "YouTube request failed (HTTP $httpCode)"
+    }
+}
+
+private fun youTubeErrorReason(responseBody: String): String? = runCatching {
+    JSONObject(responseBody)
+        .getJSONObject("error")
+        .getJSONArray("errors")
+        .getJSONObject(0)
+        .getString("reason")
+}.getOrNull()?.takeIf(YOUTUBE_REASON_PATTERN::matches)
+
+/** Google reason identifiers are short camel-case words; anything else is ignored. */
+private val YOUTUBE_REASON_PATTERN = Regex("[A-Za-z]{1,64}")
+
+private const val RECONNECT_YOUTUBE_MESSAGE =
+    "YouTube sign-in has expired or was revoked. Disconnect and reconnect YouTube."
+private const val LIVE_RESTRICTED_MESSAGE =
+    "This YouTube channel can't stream live. Check YouTube Studio for live streaming restrictions."
+private const val QUOTA_MESSAGE =
+    "Ogh's daily YouTube API limit has been reached. Try again after it resets at midnight Pacific Time."
+private const val RATE_LIMIT_MESSAGE =
+    "YouTube is receiving too many requests. Wait a minute and try again."
+
+private val YOUTUBE_REASON_MESSAGES = mapOf(
+    "liveStreamingNotEnabled" to
+        "Live streaming isn't enabled on this YouTube channel. Enable it in YouTube Studio; " +
+        "activation can take up to 24 hours.",
+    "livePermissionBlocked" to LIVE_RESTRICTED_MESSAGE,
+    "insufficientLivePermissions" to LIVE_RESTRICTED_MESSAGE,
+    "insufficientPermissions" to
+        "Ogh doesn't have permission to manage this YouTube channel. Disconnect and reconnect YouTube.",
+    "authError" to RECONNECT_YOUTUBE_MESSAGE,
+    "quotaExceeded" to QUOTA_MESSAGE,
+    "dailyLimitExceeded" to QUOTA_MESSAGE,
+    "rateLimitExceeded" to RATE_LIMIT_MESSAGE,
+    "userRateLimitExceeded" to RATE_LIMIT_MESSAGE,
+    "accessNotConfigured" to "YouTube API access isn't enabled for this build of Ogh.",
+)
 
 data class YouTubeBroadcastResult(
     val rtmpUrl: String,

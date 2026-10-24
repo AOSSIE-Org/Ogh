@@ -24,6 +24,9 @@ Notable user-visible changes are recorded here. The format follows
 
 ### Changed
 
+- YouTube failures now explain the cause and next step, such as live streaming
+  not yet enabled on the channel, an exhausted API quota, or an expired
+  sign-in, instead of showing only an HTTP status code.
 - **Lock orientation** now always keeps the interface in portrait. Previously it
   froze whatever orientation the screen had when Ogh opened, so opening Ogh
   from a landscape app could leave it locked in landscape.

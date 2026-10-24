@@ -475,7 +475,17 @@ endpoint. API tokens use the Authorization header, not query parameters.
 
 Disconnect posts the token in the form body to
 `https://oauth2.googleapis.com/revoke`, then removes the local record.
-Error messages do not disclose provider response bodies.
+Error messages do not disclose provider response bodies. From a failed
+response Ogh reads only Google's machine-readable `error.errors[0].reason`,
+accepted when it is 1–64 ASCII letters. Known reasons map to actionable
+messages: `liveStreamingNotEnabled` (enable live streaming in YouTube Studio;
+activation can take up to 24 hours), `livePermissionBlocked` and
+`insufficientLivePermissions` (channel restriction), `insufficientPermissions`
+and `authError` (reconnect YouTube), `quotaExceeded` and `dailyLimitExceeded`
+(daily API quota), `rateLimitExceeded` and `userRateLimitExceeded` (retry
+shortly), and `accessNotConfigured` (API not enabled for the build). Another
+valid reason is appended to the HTTP status; an HTTP 401 without a known reason
+asks the user to reconnect. Google's free-text `message` is never shown.
 
 ### 7.2 Twitch
 
