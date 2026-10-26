@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -169,14 +170,23 @@ private fun DestinationCard(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .background(
-                            if (destination.enabled) dotColor else OghColors.OnSurfaceMuted,
-                            CircleShape,
-                        ),
-                )
+                val provider = destination.type.provider
+                if (provider != null) {
+                    // A faded logo mirrors the muted dot of a disabled manual destination.
+                    ProviderLogo(
+                        provider = provider,
+                        modifier = Modifier.alpha(if (destination.enabled) 1f else 0.4f),
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .background(
+                                if (destination.enabled) dotColor else OghColors.OnSurfaceMuted,
+                                CircleShape,
+                            ),
+                    )
+                }
                 Spacer(Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(

@@ -20,6 +20,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -284,13 +285,16 @@ private fun ConnectPlatformsCard(
                         onClick = { onConnectProvider(provider) },
                         modifier = Modifier
                             .weight(1f)
-                            .heightIn(min = 48.dp)
+                            .heightIn(min = 56.dp)
                             .semantics {
                                 contentDescription = "Connect ${provider.displayName}"
                             },
                         shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = OghColors.SurfaceContainerHighest,
+                        ),
                     ) {
-                        Text(provider.displayName, maxLines = 1)
+                        ProviderLogo(provider, size = 28.dp)
                     }
                 }
             }
@@ -349,7 +353,7 @@ private fun SettingsNavigationRow(label: String, subtitle: String, onClick: () -
             Text(label, style = MaterialTheme.typography.bodyLarge)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = OghColors.OnSurfaceMuted)
         }
-        Text("›", style = MaterialTheme.typography.titleLarge, color = OghColors.OnSurfaceMuted)
+        OghIconImage(OghIcon.CHEVRON_RIGHT, tint = OghColors.OnSurfaceMuted)
     }
 }
 
@@ -432,7 +436,7 @@ private fun <T> PresetDropdown(
                 shape = RoundedCornerShape(8.dp),
             ) {
                 Text(optionLabel(selected), modifier = Modifier.weight(1f))
-                Text("⌄", color = OghColors.OnSurfaceMuted)
+                OghIconImage(OghIcon.CHEVRON_DOWN, tint = OghColors.OnSurfaceMuted, size = 18.dp)
             }
             DropdownMenu(
                 expanded = expanded,

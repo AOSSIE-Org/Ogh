@@ -115,20 +115,14 @@ private fun ProviderCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Provider color dot
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(providerColor.copy(alpha = 0.15f)),
+                    .background(OghColors.SurfaceContainerHighest),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = provider.displayName.first().toString(),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = providerColor,
-                )
+                ProviderLogo(provider, size = 24.dp)
             }
 
             Spacer(Modifier.width(14.dp))

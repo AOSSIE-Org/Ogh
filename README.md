@@ -71,7 +71,8 @@ provide an application client secret.
    **System Audio**, then tap **Go Live** and grant the permissions Android
    requests.
 4. While live, use **Screen**, **Camera**/**Flip Camera**, **Hide Video**/**Show
-   Video**, or **Stop**.
+   Video**, or **Stop**. Preview lists the enabled destinations above the stream
+   controls, and **Stop** asks for confirmation before ending the broadcast.
 
 The Settings hierarchy is hidden from preparation until the session stops.
 Accounts, destinations, metadata, encoders, pre-live audio selections, and

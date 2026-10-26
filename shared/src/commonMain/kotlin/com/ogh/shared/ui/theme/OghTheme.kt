@@ -68,6 +68,17 @@ val OghDarkColorScheme = darkColorScheme(
     surfaceContainerHigh = OghColors.SurfaceContainerHighest,
 )
 
+/** Compact spacing scale for screen layouts. */
+object OghSpacing {
+    val ExtraSmall = 4.dp
+    val Small = 8.dp
+    val Medium = 12.dp
+    val Large = 16.dp
+}
+
+/** Gradient shared by the brand mark and the primary Go Live action. */
+val OghBrandGradient = listOf(OghColors.Pink, Color(0xFF8B5CF6))
+
 val OghShapes = Shapes(
     extraSmall = RoundedCornerShape(2.dp),
     small = RoundedCornerShape(4.dp),

@@ -1,10 +1,15 @@
 package com.ogh.shared.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -16,34 +21,47 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ogh.shared.domain.AudioSettings
@@ -52,7 +70,9 @@ import com.ogh.shared.domain.StreamState
 import com.ogh.shared.domain.StreamingStats
 import com.ogh.shared.domain.VideoSettings
 import com.ogh.shared.domain.VideoSource
+import com.ogh.shared.ui.theme.OghBrandGradient
 import com.ogh.shared.ui.theme.OghColors
+import com.ogh.shared.ui.theme.OghSpacing
 
 /** Platform-neutral state for the focused stream preview and its live controls. */
 data class PreviewUiState(
@@ -65,6 +85,8 @@ data class PreviewUiState(
     val availableVideoSources: List<VideoSource>,
     val isSourceSwitching: Boolean = false,
 )
+
+private val ControlHeight = 56.dp
 
 /**
  * The root preview screen. Configuration lives on Settings; this screen keeps
@@ -83,6 +105,7 @@ fun PreviewScreen(
     onStopStream: () -> Unit,
     onPauseVideo: () -> Unit,
     onResumeVideo: () -> Unit,
+    onOpenDestinations: () -> Unit,
 ) {
     val isPreparing = state.streamState == StreamState.PREPARING
     val isStreaming = state.streamState == StreamState.STREAMING
@@ -90,7 +113,6 @@ fun PreviewScreen(
     val isActive = state.streamState.locksConfiguration
     val isCamera = state.videoSettings.source.usesCamera
     val cameraCount = state.availableVideoSources.count(VideoSource::usesCamera)
-    val enabledDestinations = state.destinations.count(Destination::enabled)
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val useSingleControlRow = maxWidth > maxHeight
@@ -100,11 +122,11 @@ fun PreviewScreen(
                 PreviewControls(
                     selectedSource = state.videoSettings.source,
                     audioSettings = state.audioSettings,
+                    destinations = state.destinations,
                     cameraCount = cameraCount,
                     streamState = state.streamState,
                     isSourceSwitching = state.isSourceSwitching,
                     useSingleRow = useSingleControlRow,
-                    canGoLive = enabledDestinations > 0,
                     onSelectScreen = onSelectScreen,
                     onSelectCamera = onSelectCamera,
                     onToggleMicrophone = onToggleMicrophone,
@@ -113,6 +135,7 @@ fun PreviewScreen(
                     onStopStream = onStopStream,
                     onPauseVideo = onPauseVideo,
                     onResumeVideo = onResumeVideo,
+                    onOpenDestinations = onOpenDestinations,
                 )
             },
         ) { innerPadding ->
@@ -123,7 +146,7 @@ fun PreviewScreen(
             ) {
                 previewContent(Modifier.fillMaxSize())
 
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
@@ -132,35 +155,33 @@ fun PreviewScreen(
                             ),
                         )
                         .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(horizontal = OghSpacing.Large, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(OghSpacing.Medium),
                 ) {
-                    OghMark(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .align(Alignment.Center),
-                    )
-                    if (isActive) {
-                        LiveBadge(
-                            streamState = state.streamState,
-                            modifier = Modifier.align(Alignment.CenterEnd),
+                    Box(Modifier.fillMaxWidth().heightIn(min = 38.dp)) {
+                        OghMark(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .align(Alignment.Center),
+                        )
+                        if (isActive) {
+                            LiveBadge(
+                                streamState = state.streamState,
+                                modifier = Modifier.align(Alignment.CenterEnd),
+                            )
+                        }
+                    }
+                    if (state.streamState != StreamState.IDLE) {
+                        SessionStatus(
+                            statusMessage = if (state.isSourceSwitching) {
+                                "Switching source…"
+                            } else {
+                                state.statusMessage
+                            },
+                            elapsedTime = if (isActive) state.stats.formattedTime else null,
+                            bitrate = if (isActive) state.stats.formattedBitrate else null,
                         )
                     }
-                }
-
-                if (state.streamState != StreamState.IDLE) {
-                    SessionStatus(
-                        statusMessage = if (state.isSourceSwitching) {
-                            "Switching source…"
-                        } else {
-                            state.statusMessage
-                        },
-                        elapsedTime = if (isActive) state.stats.formattedTime else null,
-                        bitrate = if (isActive) state.stats.formattedBitrate else null,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .statusBarsPadding()
-                            .padding(top = 66.dp, start = 16.dp, end = 16.dp),
-                    )
                 }
 
                 if (!isStreaming && !isPaused && !isPreparing) {
@@ -170,9 +191,9 @@ fun PreviewScreen(
                         color = Color.White,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(bottom = 12.dp)
-                            .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(bottom = OghSpacing.Medium)
+                            .background(Color.Black.copy(alpha = 0.55f), MaterialTheme.shapes.large)
+                            .padding(horizontal = OghSpacing.Medium, vertical = OghSpacing.Small),
                     )
                 }
             }
@@ -184,11 +205,11 @@ fun PreviewScreen(
 private fun PreviewControls(
     selectedSource: VideoSource,
     audioSettings: AudioSettings,
+    destinations: List<Destination>,
     cameraCount: Int,
     streamState: StreamState,
     isSourceSwitching: Boolean,
     useSingleRow: Boolean,
-    canGoLive: Boolean,
     onSelectScreen: () -> Unit,
     onSelectCamera: () -> Unit,
     onToggleMicrophone: () -> Unit,
@@ -197,94 +218,89 @@ private fun PreviewControls(
     onStopStream: () -> Unit,
     onPauseVideo: () -> Unit,
     onResumeVideo: () -> Unit,
+    onOpenDestinations: () -> Unit,
 ) {
     val isPreparing = streamState == StreamState.PREPARING
-    val isStreaming = streamState == StreamState.STREAMING
     val isPaused = streamState == StreamState.PAUSED
-    val isLive = isStreaming || isPaused
+    val isLive = streamState == StreamState.STREAMING || isPaused
     val canChangeSource = !isPreparing && !isSourceSwitching
+    val enabledDestinations = destinations.filter(Destination::enabled)
+    var confirmStop by remember { mutableStateOf(false) }
+
+    // A session that ends on its own must not leave a stale confirmation behind.
+    LaunchedEffect(isLive) { if (!isLive) confirmStop = false }
+
+    val inputControls: @Composable RowScope.() -> Unit = {
+        SourceControls(
+            selectedSource = selectedSource,
+            cameraCount = cameraCount,
+            enabled = canChangeSource,
+            onSelectScreen = onSelectScreen,
+            onSelectCamera = onSelectCamera,
+        )
+        SelectionButton(
+            label = "Mic",
+            icon = OghIcon.MICROPHONE,
+            selected = audioSettings.enableMicrophone,
+            enabled = !isPreparing,
+            onClick = onToggleMicrophone,
+            modifier = Modifier.weight(0.7f),
+        )
+        SelectionButton(
+            label = "System Audio",
+            icon = OghIcon.SPEAKER,
+            selected = audioSettings.enableSystemAudio,
+            enabled = !isPreparing,
+            onClick = onToggleSystemAudio,
+            modifier = Modifier.weight(1.3f),
+        )
+    }
+    val actionControls: @Composable RowScope.() -> Unit = {
+        ActionButtons(
+            streamState = streamState,
+            isLive = isLive,
+            canGoLive = enabledDestinations.isNotEmpty(),
+            isPaused = isPaused,
+            onStartStream = onStartStream,
+            onRequestStop = { confirmStop = true },
+            onPauseVideo = onPauseVideo,
+            onResumeVideo = onResumeVideo,
+        )
+    }
 
     Surface(color = Color.Black, tonalElevation = 0.dp) {
-        val containerModifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-        if (useSingleRow) {
-            ControlRow(modifier = containerModifier) {
-                SourceControls(
-                    selectedSource = selectedSource,
-                    cameraCount = cameraCount,
-                    enabled = canChangeSource,
-                    onSelectScreen = onSelectScreen,
-                    onSelectCamera = onSelectCamera,
-                )
-                SelectionButton(
-                    label = "Mic",
-                    selected = audioSettings.enableMicrophone,
-                    enabled = !isPreparing,
-                    onClick = onToggleMicrophone,
-                    modifier = Modifier.weight(0.8f),
-                )
-                SelectionButton(
-                    label = "Audio",
-                    selected = audioSettings.enableSystemAudio,
-                    enabled = !isPreparing,
-                    onClick = onToggleSystemAudio,
-                    modifier = Modifier.weight(0.8f),
-                )
-                ActionButtons(
-                    streamState = streamState,
-                    isLive = isLive,
-                    canGoLive = canGoLive,
-                    isPaused = isPaused,
-                    onStartStream = onStartStream,
-                    onStopStream = onStopStream,
-                    onPauseVideo = onPauseVideo,
-                    onResumeVideo = onResumeVideo,
-                )
-            }
-        } else {
-            Column(
-                modifier = containerModifier,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = OghSpacing.Large, vertical = OghSpacing.Medium),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            DestinationStrip(
+                enabledDestinations = enabledDestinations,
+                onOpenDestinations = onOpenDestinations.takeUnless { streamState.locksConfiguration },
+            )
+            if (useSingleRow) {
                 ControlRow {
-                    SourceControls(
-                        selectedSource = selectedSource,
-                        cameraCount = cameraCount,
-                        enabled = canChangeSource,
-                        onSelectScreen = onSelectScreen,
-                        onSelectCamera = onSelectCamera,
-                    )
-                    SelectionButton(
-                        label = "Mic",
-                        selected = audioSettings.enableMicrophone,
-                        enabled = !isPreparing,
-                        onClick = onToggleMicrophone,
-                        modifier = Modifier.weight(1f),
-                    )
-                    SelectionButton(
-                        label = "System Audio",
-                        selected = audioSettings.enableSystemAudio,
-                        enabled = !isPreparing,
-                        onClick = onToggleSystemAudio,
-                        modifier = Modifier.weight(1.2f),
-                    )
+                    inputControls()
+                    actionControls()
                 }
-                ControlRow {
-                    ActionButtons(
-                        streamState = streamState,
-                        isLive = isLive,
-                        canGoLive = canGoLive,
-                        isPaused = isPaused,
-                        onStartStream = onStartStream,
-                        onStopStream = onStopStream,
-                        onPauseVideo = onPauseVideo,
-                        onResumeVideo = onResumeVideo,
-                    )
-                }
+            } else {
+                ControlRow(content = inputControls)
+                ControlRow(content = actionControls)
             }
         }
+    }
+
+    if (confirmStop) {
+        StopConfirmation(
+            destinationCount = enabledDestinations.size,
+            onConfirm = {
+                confirmStop = false
+                onStopStream()
+            },
+            onDismiss = { confirmStop = false },
+        )
     }
 }
 
@@ -301,6 +317,72 @@ private fun ControlRow(
     )
 }
 
+/** Shows where Go Live will publish, or why it cannot start. */
+@Composable
+private fun DestinationStrip(
+    enabledDestinations: List<Destination>,
+    onOpenDestinations: (() -> Unit)?,
+) {
+    if (enabledDestinations.isEmpty()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "No destination enabled",
+                style = MaterialTheme.typography.bodySmall,
+                color = OghColors.Warning,
+                modifier = Modifier.weight(1f),
+            )
+            if (onOpenDestinations != null) {
+                TextButton(onClick = onOpenDestinations) { Text("Set up") }
+            }
+        }
+        return
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(OghSpacing.Small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Sending to",
+            style = MaterialTheme.typography.labelMedium,
+            color = OghColors.OnSurfaceMuted,
+        )
+        enabledDestinations.forEach { destination ->
+            Row(
+                modifier = Modifier
+                    .background(OghColors.SurfaceContainerHigh, MaterialTheme.shapes.small)
+                    .padding(horizontal = OghSpacing.Small, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val provider = destination.type.provider
+                if (provider != null) {
+                    ProviderLogo(provider, size = 14.dp)
+                } else {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .background(colorFromHex(destination.colorHex, OghColors.Violet), CircleShape),
+                    )
+                }
+                Spacer(Modifier.size(6.dp))
+                Text(
+                    text = destination.name,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = OghColors.OnSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 160.dp),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun RowScope.SourceControls(
     selectedSource: VideoSource,
@@ -309,23 +391,26 @@ private fun RowScope.SourceControls(
     onSelectScreen: () -> Unit,
     onSelectCamera: () -> Unit,
 ) {
+    val canFlip = selectedSource.usesCamera && cameraCount > 1
     SelectionButton(
         label = "Screen",
+        icon = OghIcon.SCREEN,
         selected = selectedSource == VideoSource.SCREEN,
         enabled = enabled,
         onClick = onSelectScreen,
         modifier = Modifier.weight(1f),
     )
     SelectionButton(
-        label = if (selectedSource.usesCamera && cameraCount > 1) "Flip Camera" else "Camera",
+        label = if (canFlip) "Flip Camera" else "Camera",
+        icon = if (canFlip) OghIcon.FLIP_CAMERA else OghIcon.CAMERA,
         selected = selectedSource.usesCamera,
         enabled = enabled && cameraCount > 0,
         onClick = onSelectCamera,
-        modifier = Modifier.weight(1f),
+        modifier = Modifier.weight(1.3f),
     )
 }
 
-/** The right-hand action area: Go Live when idle, Hide+Stop when live. */
+/** The action area: Go Live when idle, Hide/Show Video and Stop when live. */
 @Composable
 private fun RowScope.ActionButtons(
     streamState: StreamState,
@@ -333,25 +418,37 @@ private fun RowScope.ActionButtons(
     canGoLive: Boolean,
     isPaused: Boolean,
     onStartStream: () -> Unit,
-    onStopStream: () -> Unit,
+    onRequestStop: () -> Unit,
     onPauseVideo: () -> Unit,
     onResumeVideo: () -> Unit,
 ) {
     if (isLive) {
         OutlinedButton(
             onClick = if (isPaused) onResumeVideo else onPauseVideo,
-            modifier = Modifier.weight(1f).height(52.dp),
-            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.weight(1f).height(ControlHeight),
+            shape = MaterialTheme.shapes.large,
+            border = BorderStroke(1.dp, OghColors.Outline),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
         ) {
+            OghIconImage(
+                icon = if (isPaused) OghIcon.EYE else OghIcon.EYE_OFF,
+                tint = LocalContentColor.current,
+            )
+            Spacer(Modifier.size(OghSpacing.Small))
             Text(if (isPaused) "Show Video" else "Hide Video", maxLines = 1)
         }
         Button(
-            onClick = onStopStream,
-            modifier = Modifier.weight(1f).height(52.dp),
-            shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = OghColors.Error),
+            onClick = onRequestStop,
+            modifier = Modifier.weight(1f).height(ControlHeight),
+            shape = MaterialTheme.shapes.large,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = OghColors.Error,
+                contentColor = Color.White,
+            ),
         ) {
-            Text("Stop", color = Color.White)
+            OghIconImage(icon = OghIcon.STOP, tint = Color.White, size = 18.dp)
+            Spacer(Modifier.size(OghSpacing.Small))
+            Text("Stop", maxLines = 1)
         }
     } else {
         GoLiveButton(
@@ -364,8 +461,44 @@ private fun RowScope.ActionButtons(
 }
 
 @Composable
+private fun StopConfirmation(
+    destinationCount: Int,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("End broadcast?") },
+        text = {
+            Text(
+                if (destinationCount == 1) {
+                    "Publishing stops on your destination."
+                } else {
+                    "Publishing stops on all $destinationCount destinations."
+                },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                onConfirm()
+            }) {
+                Text("End Stream", color = OghColors.Error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Keep Streaming") }
+        },
+        containerColor = OghColors.SurfaceContainerHigh,
+    )
+}
+
+/** A source or audio toggle: icon above a short label, with selection exposed to accessibility. */
+@Composable
 private fun SelectionButton(
     label: String,
+    icon: OghIcon,
     selected: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
@@ -375,17 +508,28 @@ private fun SelectionButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier
-            .height(52.dp)
+            .height(ControlHeight)
             .semantics { this.selected = selected },
-        shape = RoundedCornerShape(8.dp),
+        shape = MaterialTheme.shapes.large,
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = if (selected) OghColors.Violet.copy(alpha = 0.24f) else Color.Transparent,
             contentColor = if (selected) OghColors.VioletLight else Color.White,
         ),
         border = BorderStroke(1.dp, if (selected) OghColors.Violet else OghColors.Outline),
-        contentPadding = PaddingValues(horizontal = 6.dp),
+        contentPadding = PaddingValues(horizontal = OghSpacing.ExtraSmall, vertical = 6.dp),
     ) {
-        Text(label, maxLines = 1, style = MaterialTheme.typography.labelMedium)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            OghIconImage(icon = icon, tint = LocalContentColor.current, size = 18.dp)
+            Text(
+                text = label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
     }
 }
 
@@ -398,13 +542,26 @@ private fun LiveBadge(streamState: StreamState, modifier: Modifier = Modifier) {
         animationSpec = tween(600),
         label = "live_color",
     )
+    val pulse by rememberInfiniteTransition(label = "live_pulse").animateFloat(
+        initialValue = 1f,
+        targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        label = "live_dot",
+    )
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .background(color.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .background(color.copy(alpha = 0.18f), MaterialTheme.shapes.large)
+            .padding(horizontal = 10.dp, vertical = OghSpacing.Small),
     ) {
-        Box(modifier = Modifier.size(8.dp).background(color, CircleShape))
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(
+                    color.copy(alpha = if (streamState == StreamState.STREAMING) pulse else 1f),
+                    CircleShape,
+                ),
+        )
         Spacer(Modifier.size(7.dp))
         Text(
             text = when {
@@ -429,11 +586,11 @@ private fun SessionStatus(
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = Color.Black.copy(alpha = 0.68f),
-        shape = RoundedCornerShape(8.dp),
+        shape = MaterialTheme.shapes.large,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(OghSpacing.Large),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -468,15 +625,30 @@ private fun GoLiveButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptics = LocalHapticFeedback.current
     val isPreparing = streamState == StreamState.PREPARING
+    val clickable = enabled && !isPreparing
+    val shape = MaterialTheme.shapes.large
+    val background = when {
+        clickable -> Brush.horizontalGradient(OghBrandGradient)
+        isPreparing -> SolidColor(OghColors.VioletDark)
+        else -> SolidColor(OghColors.SurfaceContainerHighest)
+    }
     Button(
-        onClick = onClick,
-        enabled = enabled && !isPreparing,
-        modifier = modifier.height(52.dp),
-        shape = RoundedCornerShape(8.dp),
+        onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+            onClick()
+        },
+        enabled = clickable,
+        modifier = modifier
+            .height(ControlHeight)
+            .background(background, shape),
+        shape = shape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = OghColors.Violet,
-            disabledContainerColor = OghColors.Violet.copy(alpha = 0.25f),
+            containerColor = Color.Transparent,
+            contentColor = Color.White,
+            disabledContainerColor = Color.Transparent,
+            disabledContentColor = if (isPreparing) Color.White else OghColors.OnSurfaceMuted,
         ),
         contentPadding = PaddingValues(horizontal = 6.dp),
     ) {
@@ -486,12 +658,13 @@ private fun GoLiveButton(
                 color = Color.White,
                 strokeWidth = 2.dp,
             )
-            Spacer(Modifier.size(6.dp))
+        } else {
+            Box(Modifier.size(10.dp).background(LocalContentColor.current, CircleShape))
         }
+        Spacer(Modifier.size(OghSpacing.Small))
         Text(
             text = if (isPreparing) "Preparing…" else "Go Live",
             style = MaterialTheme.typography.labelLarge,
-            color = Color.White,
             fontWeight = FontWeight.SemiBold,
         )
     }
@@ -515,7 +688,7 @@ fun OghMark(modifier: Modifier = Modifier) {
         }
         drawPath(
             path = path,
-            brush = Brush.linearGradient(listOf(OghColors.Pink, Color(0xFF8B5CF6))),
+            brush = Brush.linearGradient(OghBrandGradient),
             style = Stroke(
                 width = 6f * minOf(scaleX, scaleY),
                 cap = StrokeCap.Round,
