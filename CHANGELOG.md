@@ -38,6 +38,25 @@ Notable user-visible changes are recorded here. The format follows
 - YouTube and Twitch now appear with their brand icons on the connection
   buttons, the Platforms list, the Destinations list, and the Preview
   destination strip.
+- Fixed **Stop** crashing the app when two or more destinations were enabled;
+  late RTMP disconnect callbacks from the torn-down pipeline are now ignored.
+- The streaming notification now shows the real session state (connecting,
+  live with connected-destination count, video hidden, or no destination
+  connected), opens Ogh when tapped, and has a **Stop** action.
+- During a session each **Sending to** chip shows that destination's status
+  (Connecting, Live, Failed, Disconnected).
+- Platforms shows connect/disconnect progress, keeps the Twitch device code on
+  screen with **Open Twitch** and **Cancel**, blocks parallel sign-ins, and
+  confirms before disconnecting.
+- The stream-key field has a **Show**/**Hide** toggle. Back buttons, destination
+  switches, Edit and Delete, and colour swatches are announced as labelled
+  controls to screen readers.
+- Selected source and audio buttons now show a check badge, a heavier border,
+  and an On/Off state for screen readers, so selection no longer relies on
+  colour alone.
+- The open screen and destination form input (except the stream key) survive
+  activity recreation, and a pending YouTube sign-in is no longer lost.
+- Cold start uses a dark launch window instead of flashing white.
 - Fixed a camera, audio, or screen-capture permission result that arrived after
   the activity was recreated (for example by a dark-mode change while the
   dialog was open) starting a broadcast without **Go Live**. The result now

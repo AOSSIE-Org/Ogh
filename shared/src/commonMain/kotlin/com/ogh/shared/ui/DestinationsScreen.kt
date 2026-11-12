@@ -18,6 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,16 +56,7 @@ fun DestinationsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "←",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onBack() }
-                            .wrapContentSize(Alignment.Center),
-                    )
+                    BackButton(onClick = onBack)
                     Spacer(Modifier.width(12.dp))
                     Text(
                         text = "Destinations",
@@ -77,7 +71,7 @@ fun DestinationsScreen(
                     modifier = Modifier
                         .heightIn(min = 48.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { onAddDestination() }
+                        .clickable(role = Role.Button, onClick = onAddDestination)
                         .padding(horizontal = 12.dp)
                         .wrapContentHeight(Alignment.CenterVertically),
                 )
@@ -208,6 +202,9 @@ private fun DestinationCard(
                 Switch(
                     checked = destination.enabled,
                     onCheckedChange = { onToggle() },
+                    modifier = Modifier.semantics {
+                        contentDescription = "Enable ${destination.name}"
+                    },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = OghColors.Violet,
@@ -218,29 +215,39 @@ private fun DestinationCard(
             }
 
             if (destination.type == DestinationType.RTMP_MANUAL) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(4.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        text = "Edit",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = OghColors.VioletLight,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { onEdit() }
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                    )
-                    Text(
-                        text = "Delete",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = OghColors.Error.copy(alpha = 0.7f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { onDelete() }
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                    )
+                    TextButton(
+                        onClick = onEdit,
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(6.dp),
+                    ) {
+                        Text(
+                            text = "Edit",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = OghColors.VioletLight,
+                            modifier = Modifier.semantics {
+                                contentDescription = "Edit ${destination.name}"
+                            },
+                        )
+                    }
+                    TextButton(
+                        onClick = onDelete,
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(6.dp),
+                    ) {
+                        Text(
+                            text = "Delete",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = OghColors.Error,
+                            modifier = Modifier.semantics {
+                                contentDescription = "Delete ${destination.name}"
+                            },
+                        )
+                    }
                 }
             }
         }

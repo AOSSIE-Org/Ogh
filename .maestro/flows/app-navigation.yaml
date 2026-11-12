@@ -30,7 +30,7 @@ tags: [smoke]
     direction: DOWN
 - tapOn: "Submit Destination"
 - assertVisible: "Destinations"
-- tapOn: "←"
+- tapOn: "Back"
 - assertVisible: "Settings"
 - assertVisible: "Stream details"
 - assertVisible: "Title"
@@ -68,7 +68,7 @@ tags: [smoke]
     direction: UP
 - tapOn: "About"
 - assertVisible: "About"
-- tapOn: "←"
+- tapOn: "Back"
 - assertVisible: "Settings"
 - tapOn: "Stream"
 - assertVisible: "Screen"

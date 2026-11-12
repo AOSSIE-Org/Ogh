@@ -2,6 +2,7 @@ package org.aossie.ogh
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -36,6 +37,7 @@ import com.pedro.library.multiple.MultiStream
 import com.pedro.library.multiple.MultiType
 import com.ogh.shared.domain.AudioConfig
 import com.ogh.shared.domain.AudioSettings
+import com.ogh.shared.domain.DestinationConnectionStatus
 import com.ogh.shared.domain.VideoConfig
 import com.ogh.shared.domain.VideoSettings
 import com.ogh.shared.domain.VideoSource
@@ -65,6 +67,11 @@ class ScreenCaptureService : Service() {
         private const val EXTRA_USES_MEDIA_PROJECTION = "uses_media_projection"
         private const val EXTRA_USES_CAMERA = "uses_camera"
         private const val EXTRA_USES_MICROPHONE = "uses_microphone"
+        private const val ACTION_STOP_SESSION = "org.aossie.ogh.action.STOP_SESSION"
+        private const val REQUEST_OPEN_APP = 1
+        private const val REQUEST_STOP_SESSION = 2
+        private const val TEXT_PREPARING = "Preparing stream…"
+        private const val TEXT_PAUSED = "Video hidden — audio remains live"
 
         /** Singleton reference — allows the Activity/ViewModel to communicate with the service. */
         @Volatile
@@ -100,6 +107,18 @@ class ScreenCaptureService : Service() {
 
     /** External callback to forward connection events to the UI layer. */
     var connectionCallback: ConnectChecker? = null
+
+    /** Routes the notification's Stop action through the session owner when one is attached. */
+    var stopRequestListener: (() -> Unit)? = null
+
+    /** Reports each RTMP output index's connection state; indexes follow [startStreams]. */
+    var destinationStatusListener: ((Int, DestinationConnectionStatus) -> Unit)? = null
+
+    private var notificationText = TEXT_PREPARING
+
+    /** Read from RTMP callback threads; cleared before teardown so late callbacks stay silent. */
+    @Volatile
+    private var publishing = false
 
     private var videoConfig = VideoConfig()
     private var audioConfig = AudioConfig()
@@ -140,6 +159,12 @@ class ScreenCaptureService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP_SESSION) {
+            Log.i(TAG, "Stop requested from notification")
+            val listener = stopRequestListener
+            if (listener != null) listener() else finishSession()
+            return START_NOT_STICKY
+        }
         Log.i(TAG, "Service started")
         startForegroundNotification(
             usesMediaProjection = intent?.getBooleanExtra(EXTRA_USES_MEDIA_PROJECTION, false) == true,
@@ -177,6 +202,9 @@ class ScreenCaptureService : Service() {
         preparedPreview = null
         sessionPrepared = false
         connectionCallback = null
+        stopRequestListener = null
+        destinationStatusListener = null
+        publishing = false
     }
 
     // --- Public API for ViewModel/Activity ---
@@ -343,6 +371,8 @@ class ScreenCaptureService : Service() {
             return false
         }
 
+        notificationText = TEXT_PREPARING
+        publishing = false
         startForegroundNotification(
             usesMediaProjection = needsProjection,
             usesCamera = selectedVideoSource.usesCamera,
@@ -543,7 +573,7 @@ class ScreenCaptureService : Service() {
             filterApplied = true
             multiStream.requestKeyframe()
             videoPaused = true
-            updateNotification("Video hidden — stream remains live")
+            refreshSessionNotification()
             true
         }.getOrElse { error ->
             Log.e(TAG, "Failed to display pause image", error)
@@ -561,7 +591,7 @@ class ScreenCaptureService : Service() {
             applyCameraOrientation()
             multiStream.requestKeyframe()
             videoPaused = false
-            updateNotification("Streaming in progress…")
+            refreshSessionNotification()
             true
         }.getOrElse { error ->
             Log.e(TAG, "Failed to restore video source", error)
@@ -580,6 +610,8 @@ class ScreenCaptureService : Service() {
             "Expected $destinationCount destinations, got ${endpoints.size}"
         }
         val startedIndices = mutableListOf<Int>()
+        publishing = true
+        refreshSessionNotification()
         return runCatching {
             endpoints.forEachIndexed { index, endpoint ->
                 Log.i(TAG, "Starting RTMP destination ${index + 1}/$destinationCount (key redacted)")
@@ -592,6 +624,7 @@ class ScreenCaptureService : Service() {
             startedIndices.forEach { index ->
                 runCatching { multiStream.stopStream(MultiType.RTMP, index) }
             }
+            publishing = false
             false
         }
     }
@@ -653,13 +686,7 @@ class ScreenCaptureService : Service() {
 
             configureAudioSource(mediaProjection)
 
-            updateNotification(
-                if (videoPaused) {
-                    "Video hidden — stream remains live"
-                } else {
-                    "Streaming in progress…"
-                },
-            )
+            refreshSessionNotification()
 
             true
         }.getOrElse { error ->
@@ -743,9 +770,7 @@ class ScreenCaptureService : Service() {
                 usesCamera = source.usesCamera,
                 usesMicrophone = micEnabled,
             )
-            updateNotification(
-                if (videoPaused) "Video hidden — source selected" else "Streaming in progress…",
-            )
+            refreshSessionNotification()
             true
         }.getOrElse { error ->
             Log.e(TAG, "Failed to switch video source", error)
@@ -775,6 +800,7 @@ class ScreenCaptureService : Service() {
     /** Ends a session and releases projection/audio data while keeping a bound preview host usable. */
     @Synchronized
     fun finishSession() {
+        publishing = false
         stopStream()
         if (multiStream.isOnPreview) runCatching { multiStream.stopPreview() }
         multiStream.release()
@@ -785,6 +811,9 @@ class ScreenCaptureService : Service() {
         preparedPreview = null
         sessionPrepared = false
         connectionCallback = null
+        stopRequestListener = null
+        destinationStatusListener = null
+        notificationText = TEXT_PREPARING
         destinationCount = 1
         initializeStream(destinationCount)
         stopSelf()
@@ -802,11 +831,13 @@ class ScreenCaptureService : Service() {
 
     private fun initializeStream(count: Int) {
         preparedPreview = null
-        connectedDestinations = BooleanArray(count)
-        terminalDestinations = BooleanArray(count)
+        val connected = BooleanArray(count)
+        val terminal = BooleanArray(count)
+        connectedDestinations = connected
+        terminalDestinations = terminal
         multiStream = MultiStream(
             baseContext,
-            Array(count) { index -> DestinationConnectChecker(index) },
+            Array(count) { index -> DestinationConnectChecker(index, connected, terminal) },
             null,
             null,
             null,
@@ -890,9 +921,47 @@ class ScreenCaptureService : Service() {
             .setContentTitle("Ogh")
             .setContentText(text)
             .setSmallIcon(R.mipmap.ic_notification)
+            .setContentIntent(openAppIntent())
+            .addAction(R.mipmap.ic_notification, "Stop", stopSessionIntent())
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setSilent(true)
             .setOngoing(true)
             .build()
+
+    /** Brings the existing Ogh task forward instead of starting a second activity. */
+    private fun openAppIntent(): PendingIntent {
+        val launch = packageManager.getLaunchIntentForPackage(packageName)
+            ?: Intent(this, MainActivity::class.java)
+        return PendingIntent.getActivity(
+            this,
+            REQUEST_OPEN_APP,
+            launch,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+
+    private fun stopSessionIntent(): PendingIntent = PendingIntent.getService(
+        this,
+        REQUEST_STOP_SESSION,
+        Intent(this, ScreenCaptureService::class.java).setAction(ACTION_STOP_SESSION),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    /** Describes the session from the per-output state so the notification never goes stale. */
+    private fun refreshSessionNotification() {
+        if (!publishing) return
+        val connected = connectedDestinations.count { it }
+        val total = connectedDestinations.size
+        updateNotification(
+            when {
+                videoPaused -> TEXT_PAUSED
+                connected > 0 && total == 1 -> "Live"
+                connected > 0 -> "Live · $connected of $total destinations connected"
+                terminalDestinations.all { it } -> "No destination is connected"
+                else -> "Connecting…"
+            },
+        )
+    }
 
     @SuppressLint("InlinedApi") // ServiceCompat ignores service-type bits before Android 10.
     private fun startForegroundNotification(
@@ -900,7 +969,7 @@ class ScreenCaptureService : Service() {
         usesCamera: Boolean,
         usesMicrophone: Boolean,
     ) {
-        val notification = buildNotification("Preparing stream…")
+        val notification = buildNotification(notificationText)
 
         val foregroundServiceType =
             (if (usesMediaProjection) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION else 0) or
@@ -915,57 +984,88 @@ class ScreenCaptureService : Service() {
     }
 
     private fun updateNotification(text: String) {
+        notificationText = text
         notificationManager?.notify(NOTIFICATION_ID, buildNotification(text))
     }
 
-    private inner class DestinationConnectChecker(private val index: Int) : ConnectChecker {
+    /**
+     * Tracks one output of one pipeline generation. RootEncoder delivers disconnects
+     * asynchronously, so callbacks can arrive after [finishSession] or
+     * [configureDestinations] rebuilt the pipeline with fewer outputs; those stale
+     * callbacks touch only their own generation's arrays and are otherwise ignored.
+     */
+    private inner class DestinationConnectChecker(
+        private val index: Int,
+        private val connected: BooleanArray,
+        private val terminal: BooleanArray,
+    ) : ConnectChecker {
+        private val isCurrent: Boolean
+            get() = connected === connectedDestinations
+
         override fun onConnectionStarted(url: String) {
-            terminalDestinations[index] = false
+            if (!isCurrent) return
+            terminal[index] = false
             Log.i(TAG, "Destination ${index + 1} connecting")
-            if (connectedDestinations.none { it }) connectionCallback?.onConnectionStarted("")
+            destinationStatusListener?.invoke(index, DestinationConnectionStatus.CONNECTING)
+            refreshSessionNotification()
+            if (connected.none { it }) connectionCallback?.onConnectionStarted("")
         }
 
         override fun onConnectionSuccess() {
-            val wasAnyConnected = connectedDestinations.any { it }
-            connectedDestinations[index] = true
-            terminalDestinations[index] = false
+            if (!isCurrent) return
+            val wasAnyConnected = connected.any { it }
+            connected[index] = true
+            terminal[index] = false
             Log.i(TAG, "Destination ${index + 1} connected")
+            destinationStatusListener?.invoke(index, DestinationConnectionStatus.LIVE)
+            refreshSessionNotification()
             if (!wasAnyConnected) connectionCallback?.onConnectionSuccess()
         }
 
         override fun onConnectionFailed(reason: String) {
-            connectedDestinations[index] = false
-            terminalDestinations[index] = true
+            if (!isCurrent) return
+            connected[index] = false
+            terminal[index] = true
             // RootEncoder errors may contain a complete RTMP URL and stream key.
             Log.e(TAG, "Destination ${index + 1} failed")
-            if (connectedDestinations.none { it } && terminalDestinations.all { it }) {
+            destinationStatusListener?.invoke(index, DestinationConnectionStatus.FAILED)
+            refreshSessionNotification()
+            if (connected.none { it } && terminal.all { it }) {
                 connectionCallback?.onConnectionFailed("All destinations failed to connect")
             }
         }
 
         override fun onNewBitrate(bitrate: Long) {
+            if (!isCurrent) return
             connectionCallback?.onNewBitrate(bitrate)
         }
 
         override fun onDisconnect() {
-            connectedDestinations[index] = false
-            terminalDestinations[index] = true
+            if (!isCurrent) return
+            connected[index] = false
+            terminal[index] = true
             Log.i(TAG, "Destination ${index + 1} disconnected")
-            if (connectedDestinations.none { it } && terminalDestinations.all { it }) {
+            destinationStatusListener?.invoke(index, DestinationConnectionStatus.DISCONNECTED)
+            refreshSessionNotification()
+            if (connected.none { it } && terminal.all { it }) {
                 connectionCallback?.onDisconnect()
             }
         }
 
         override fun onAuthError() {
-            connectedDestinations[index] = false
-            terminalDestinations[index] = true
+            if (!isCurrent) return
+            connected[index] = false
+            terminal[index] = true
             Log.e(TAG, "Destination ${index + 1} authentication failed")
-            if (connectedDestinations.none { it } && terminalDestinations.all { it }) {
+            destinationStatusListener?.invoke(index, DestinationConnectionStatus.FAILED)
+            refreshSessionNotification()
+            if (connected.none { it } && terminal.all { it }) {
                 connectionCallback?.onAuthError()
             }
         }
 
         override fun onAuthSuccess() {
+            if (!isCurrent) return
             Log.i(TAG, "Destination ${index + 1} authentication succeeded")
             connectionCallback?.onAuthSuccess()
         }
