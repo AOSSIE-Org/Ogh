@@ -10,8 +10,10 @@ import com.ogh.shared.data.DestinationRepository
 import com.ogh.shared.domain.AppSettings
 import com.ogh.shared.domain.AudioSettings
 import com.ogh.shared.domain.Destination
+import com.ogh.shared.domain.DestinationConnectionStatus
 import com.ogh.shared.domain.DestinationType
 import com.ogh.shared.domain.LogLevel
+import com.ogh.shared.domain.PlannedEndpoint
 import com.ogh.shared.domain.StreamState
 import com.ogh.shared.domain.StreamMetadata
 import com.ogh.shared.domain.StreamEndpointPlanner
@@ -26,6 +28,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.logging.Level
@@ -58,6 +61,11 @@ class StreamViewModel(
 
     private val _isSourceSwitching = MutableStateFlow(false)
     val isSourceSwitching: StateFlow<Boolean> = _isSourceSwitching.asStateFlow()
+
+    /** RTMP state of each destination in the current session, keyed by destination ID. */
+    private val _destinationStatuses = MutableStateFlow<Map<String, DestinationConnectionStatus>>(emptyMap())
+    val destinationStatuses: StateFlow<Map<String, DestinationConnectionStatus>> =
+        _destinationStatuses.asStateFlow()
 
     // --- Settings ---
     private val _videoSettings = MutableStateFlow(VideoSettings())
@@ -260,6 +268,7 @@ class StreamViewModel(
         if (_streamState.value.locksConfiguration) return false
         _streamState.value = StreamState.PREPARING
         _statusMessage.value = "Preparing stream…"
+        _destinationStatuses.value = emptyMap()
         stopRequested = false
         return true
     }
@@ -269,6 +278,7 @@ class StreamViewModel(
         _streamState.value = if (isError) StreamState.ERROR else StreamState.IDLE
         _statusMessage.value = message
         _isSourceSwitching.value = false
+        _destinationStatuses.value = emptyMap()
         providerEndpoints = emptyMap()
     }
 
@@ -302,7 +312,8 @@ class StreamViewModel(
 
         service.connectionCallback = this
 
-        val endpoints = enabledStreamEndpoints()
+        val targets = enabledStreamTargets()
+        val endpoints = targets.map(PlannedEndpoint::endpoint)
         if (endpoints.isEmpty()) {
             _streamState.value = StreamState.ERROR
             _statusMessage.value = "No stream endpoints are available"
@@ -332,6 +343,14 @@ class StreamViewModel(
             "Starting stream to ${endpoints.size} enabled destination(s)",
         )
         streamStartTimeMs = System.currentTimeMillis()
+
+        val destinationIds = targets.map(PlannedEndpoint::destinationId)
+        _destinationStatuses.value =
+            destinationIds.associateWith { DestinationConnectionStatus.CONNECTING }
+        service.destinationStatusListener = { index, status ->
+            destinationIds.getOrNull(index)?.let { id -> updateDestinationStatus(id, status) }
+        }
+        service.stopRequestListener = ::stopStreaming
 
         if (!service.startStreams(endpoints)) {
             streamStartTimeMs = 0
@@ -414,10 +433,20 @@ class StreamViewModel(
         )
 
     internal fun enabledStreamEndpoints(): List<String> =
-        StreamEndpointPlanner.enabledEndpoints(
+        enabledStreamTargets().map(PlannedEndpoint::endpoint)
+
+    private fun enabledStreamTargets(): List<PlannedEndpoint> =
+        StreamEndpointPlanner.enabledTargets(
             destinations = destinationRepository.destinations.value,
             providerEndpoints = providerEndpoints,
         )
+
+    /** Called from RTMP threads; ignored once the session's status map has been cleared. */
+    internal fun updateDestinationStatus(destinationId: String, status: DestinationConnectionStatus) {
+        _destinationStatuses.update { current ->
+            if (destinationId in current) current + (destinationId to status) else current
+        }
+    }
 
     /** Stops the active stream. */
     fun stopStreaming() {
@@ -427,6 +456,7 @@ class StreamViewModel(
         _statusMessage.value = "Stream stopped"
         _isSourceSwitching.value = false
         _streamingStats.value = StreamingStats()
+        _destinationStatuses.value = emptyMap()
         providerEndpoints = emptyMap()
         log(Subsystems.STREAMER, LogLevel.INFO, "Stream stopped by user")
     }

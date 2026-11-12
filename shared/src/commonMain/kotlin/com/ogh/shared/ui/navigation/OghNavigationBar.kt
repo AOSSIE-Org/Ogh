@@ -17,8 +17,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.ogh.shared.ui.theme.OghColors
 
@@ -91,11 +89,8 @@ private fun NavTabIcon(
     color: Color,
     modifier: Modifier = Modifier,
 ) {
-    Canvas(
-        modifier = modifier
-            .size(24.dp)
-            .semantics { contentDescription = tab.title },
-    ) {
+    // Decorative: the item's visible label already names the tab for screen readers.
+    Canvas(modifier = modifier.size(24.dp)) {
         when (tab) {
             NavTab.STREAM -> drawStreamIcon(color, isSelected)
             NavTab.SETTINGS -> drawSettingsIcon(color)

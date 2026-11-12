@@ -57,7 +57,8 @@ manual RTMP destination exists. Preview contains:
 - the centered Ogh mark, a Settings action while idle, and a preparation/live/
   video-hidden badge;
 - a compact status overlay with duration and bitrate during a session attempt;
-- a **Sending to** strip naming each enabled destination with its color, or
+- a **Sending to** strip naming each enabled destination with its color and,
+  during a session, its Connecting, Live, Failed, or Disconnected state, or
   **No destination enabled** with a **Set up** action that opens Destinations
   while configuration is unlocked;
 - persistent **Screen** and **Camera** source controls;
@@ -69,8 +70,10 @@ manual RTMP destination exists. Preview contains:
 
 Source, audio, and live controls pair a code-drawn icon with a text label.
 Controls occupy two rows when the UI is portrait and one row when the UI is
-landscape; the destination strip sits above them in both layouts. Audio selections are available only before preparation; they remain
-visible as selected/unselected buttons and persist like other settings.
+landscape; the destination strip sits above them in both layouts, and labels
+are identical in both. Selected source and audio buttons show a check badge, a
+heavier border, and an "On" state description, so selection never relies on
+colour alone. Audio selections persist like other settings.
 
 There is no camera dropdown. **Camera** selects the first compatible facing;
 when both front and back cameras exist, its selected-state label becomes **Flip
@@ -137,6 +140,11 @@ contains:
 
 The stream endpoint is the server URL plus exactly one slash plus the key,
 unless the URL already ends in a slash. A delete action requires confirmation.
+The stream-key field is masked with a **Show**/**Hide** toggle. Name, URL,
+colour, and the open form survive activity recreation; the stream key is
+deliberately not written to saved instance state. Edit, Delete, and each
+enable switch are labelled with the destination name for screen readers and
+keep 48dp touch targets.
 Only manual destinations are serialized to the manual-destination store.
 
 ### 3.3 Provider platforms
@@ -147,8 +155,14 @@ buttons show only the icon; their accessible names remain **Connect YouTube**
 and **Connect Twitch**. Provider destinations use the same icon in place of
 the color dot in the Destinations list, where it fades while the destination is
 disabled, and in the Preview **Sending to** strip. A provider is either
-disconnected, in a connection operation, or connected with its locally retained
-account label.
+disconnected, in a connect or disconnect operation, or connected with its
+locally retained account label. Only one operation runs at a time; other
+Connect/Disconnect actions are disabled meanwhile, and Connect from first-run
+Settings opens Platforms so the progress is visible. YouTube shows progress
+until browser sign-in returns. Twitch shows the device code, an **Open Twitch**
+action, a waiting indicator, and **Cancel** until approval, denial, expiry, or
+cancellation. Disconnect asks for confirmation first. A pending YouTube sign-in
+survives activity recreation.
 Connecting creates exactly one provider-managed destination. Disconnecting
 removes that destination and the local account record after attempting provider
 revocation.
@@ -261,8 +275,13 @@ Stream ↔ Settings ↔ About
 `MainActivity` owns the current `Screen` and renders `OghNavigationBar` across
 root screens (`PREVIEW`, `SETTINGS`, `ABOUT`). The navigation bar is hidden while
 `StreamState.locksConfiguration` is true and during child forms. Compose `BackHandler`
-and the visible back action return to the preceding logical screen. OAuth redirects
-return to the activity through AppAuth's exported redirect receiver.
+and the visible back action, announced as a **Back** button, return to the
+preceding logical screen. The current screen, the About return target, and the
+destination being edited are kept in saved instance state, so recreation (for
+example a theme, locale, or font change) does not reset navigation; an edit
+target that no longer exists falls back to Destinations. Navigation-bar icons
+are decorative because each item's label names it. OAuth redirects return to
+the activity through AppAuth's exported redirect receiver.
 
 Screens, the `Screen` enum, theme tokens, and the in-app Ogh mark are Compose
 Multiplatform code in `shared/src/commonMain`. They accept immutable values and
@@ -277,7 +296,8 @@ live source controls remain usable.
 
 Ogh uses one dark Material 3 theme:
 
-- near-black `#0B0B0E` background;
+- near-black `#0B0B0E` background, also used by the dark `Theme.Ogh` launch
+  window and Android 12+ splash so a cold start never flashes white;
 - dark flat, border-free rounded surfaces with dividers where rows share a card;
 - primary pink-purple `#D946EF`, light `#F0ABFC`, deep `#701A75`;
 - pink-to-purple logo gradient from `#F43F9E` to `#8B5CF6`;
@@ -417,6 +437,16 @@ landscape width×height. Physical camera orientation is applied to the camera
 texture. The stream portrait viewport follows the current physical orientation.
 The preview counter-rotation and preview portrait flag remain independent.
 Changing device orientation does not rebuild the encoder or RTMP clients.
+
+The foreground notification states the session truthfully: "Preparing
+stream…", then "Connecting…", "Live" (or "Live · N of M destinations
+connected"), "Video hidden — audio remains live", or "No destination is
+connected". Tapping it brings the existing Ogh task forward. Its **Stop** action
+runs the ViewModel's stop path when a ViewModel is attached, otherwise it ends
+the session directly, and is the only way to abandon a session stuck connecting.
+Each RTMP output reports Connecting/Live/Failed/Disconnected for the Preview
+chips; callbacks from a pipeline that was already torn down are ignored, because
+RootEncoder delivers disconnects asynchronously after cleanup.
 
 Cleanup stops every client, releases capture, encoder, preview, and audio
 resources, clears the MediaProjection result, removes session callbacks,
@@ -708,7 +738,7 @@ A production-ready change preserves all applicable statements below:
 - Preview source selection and Settings stream details persist in the same
   settings snapshot.
 - Preview audio selection persists, uses two control rows in portrait, and fits
-  in one row in landscape.
+  in one row in landscape without truncating any label.
 - Persisted settings load before **Go Live** can begin and survive process death.
 - **Go Live** cannot be double-triggered while permissions/API/encoder work is
   running.

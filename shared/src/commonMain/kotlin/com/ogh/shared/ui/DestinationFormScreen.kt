@@ -1,6 +1,6 @@
 package com.ogh.shared.ui
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,16 +11,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ogh.shared.ui.theme.OghColors
@@ -47,19 +53,22 @@ fun DestinationFormScreen(
     val isEditing = existing != null
 
     // Generate a random name for new destinations
-    val defaultName = remember(existing?.id) {
+    val defaultName = rememberSaveable(existing?.id) {
         val adjectives = listOf("Red", "Blue", "Fast", "Chill", "Live", "Night", "Epic", "Pixel")
         val nouns = listOf("Stream", "Cast", "Wave", "Beam", "Flow", "Pulse", "Feed", "Link")
         "${adjectives.random()} ${nouns.random()}"
     }
 
-    var name by remember(existing?.id) { mutableStateOf(existing?.name ?: defaultName) }
-    var url by remember(existing?.id) { mutableStateOf(existing?.rtmpUrl.orEmpty()) }
+    // Non-secret input survives activity recreation. The stream key is deliberately
+    // kept out of saved instance state so credentials stay only in encrypted storage.
+    var name by rememberSaveable(existing?.id) { mutableStateOf(existing?.name ?: defaultName) }
+    var url by rememberSaveable(existing?.id) { mutableStateOf(existing?.rtmpUrl.orEmpty()) }
     var key by remember(existing?.id) { mutableStateOf(existing?.streamKey ?: "") }
-    var colorHex by remember(existing?.id) {
+    var showKey by remember(existing?.id) { mutableStateOf(false) }
+    var colorHex by rememberSaveable(existing?.id) {
         mutableStateOf(existing?.colorHex ?: Destination.DEFAULT_COLOR_HEX)
     }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
 
     val colorOptions = listOf(
         Destination.DEFAULT_COLOR_HEX,
@@ -80,16 +89,7 @@ fun DestinationFormScreen(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "←",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onBack() }
-                        .wrapContentSize(Alignment.Center),
-                )
+                BackButton(onClick = onBack)
                 Spacer(Modifier.width(12.dp))
                 Text(
                     text = if (isEditing) "Edit Destination" else "Add Destination",
@@ -150,8 +150,29 @@ fun DestinationFormScreen(
                 label = { Text("Stream Key") },
                 placeholder = { Text("xxxx-xxxx-xxxx-xxxx") },
                 singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (showKey) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    TextButton(
+                        onClick = { showKey = !showKey },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    ) {
+                        // Label on the text so screen readers announce one phrase on the button.
+                        Text(
+                            text = if (showKey) "Hide" else "Show",
+                            color = OghColors.VioletLight,
+                            modifier = Modifier.semantics {
+                                contentDescription =
+                                    if (showKey) "Hide stream key" else "Show stream key"
+                            },
+                        )
+                    }
+                },
                 keyboardOptions = KeyboardOptions(
+                    autoCorrectEnabled = false,
                     keyboardType = KeyboardType.Password,
                     imeAction = ImeAction.Next,
                 ),
@@ -176,20 +197,30 @@ fun DestinationFormScreen(
                     val color = colorFromHex(hex, OghColors.Violet)
                     val isSelected = hex == colorHex
 
-                    Surface(
+                    Box(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { colorHex = hex },
-                        shape = RoundedCornerShape(8.dp),
-                        color = color,
-                        border = if (isSelected) {
-                            ButtonDefaults.outlinedButtonBorder(enabled = true)
-                        } else null,
+                            .selectable(
+                                selected = isSelected,
+                                role = Role.RadioButton,
+                                onClick = { colorHex = hex },
+                            )
+                            .semantics { contentDescription = "Color $hex" },
                     ) {
-                        if (isSelected) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("✓", color = Color.White)
+                        // Decorative swatch; the wrapper carries the radio semantics.
+                        Surface(
+                            modifier = Modifier.fillMaxSize().clearAndSetSemantics {},
+                            shape = RoundedCornerShape(8.dp),
+                            color = color,
+                            border = if (isSelected) {
+                                ButtonDefaults.outlinedButtonBorder(enabled = true)
+                            } else null,
+                        ) {
+                            if (isSelected) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text("✓", color = Color.White)
+                                }
                             }
                         }
                     }
@@ -202,6 +233,7 @@ fun DestinationFormScreen(
                     text = it,
                     style = MaterialTheme.typography.bodyMedium,
                     color = OghColors.Error,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
 

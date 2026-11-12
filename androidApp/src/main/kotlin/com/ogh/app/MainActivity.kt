@@ -54,6 +54,7 @@ import com.ogh.shared.ui.AboutUiState
 import com.ogh.shared.ui.AccountsScreen
 import com.ogh.shared.ui.PreviewScreen
 import com.ogh.shared.ui.PreviewUiState
+import com.ogh.shared.ui.ProviderOperationState
 import com.ogh.shared.ui.DestinationFormScreen
 import com.ogh.shared.ui.DestinationsScreen
 import com.ogh.shared.ui.SettingsScreen
@@ -61,13 +62,16 @@ import com.ogh.shared.ui.navigation.NavTab
 import com.ogh.shared.ui.navigation.OghNavigationBar
 import com.ogh.shared.ui.navigation.Screen
 import com.ogh.shared.ui.theme.OghTheme
+import com.ogh.shared.domain.ProviderAccount
 import com.ogh.shared.domain.StreamingProvider
 import com.ogh.shared.domain.DestinationType
 import com.ogh.shared.domain.AudioSettings
 import com.ogh.shared.domain.StreamState
 import com.ogh.shared.domain.VideoSettings
 import com.ogh.shared.domain.VideoSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -127,6 +131,8 @@ class MainActivity : ComponentActivity() {
     private val youTubeApiClient = YouTubeApiClient()
     private val googleTokenRevoker = GoogleTokenRevoker()
     private var pendingOAuthProvider by mutableStateOf<StreamingProvider?>(null)
+    private var providerOperation by mutableStateOf<ProviderOperationState?>(null)
+    private var twitchConnectJob: Job? = null
     private val mediaProjectionManager by lazy {
         getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
     }
@@ -274,7 +280,10 @@ class MainActivity : ComponentActivity() {
     private val oauthLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val provider = pendingOAuthProvider ?: return@registerForActivityResult
+        val provider = pendingOAuthProvider ?: run {
+            finishProviderOperation(StreamingProvider.YOUTUBE)
+            return@registerForActivityResult
+        }
         pendingOAuthProvider = null
 
         if (result.data != null) {
@@ -283,59 +292,69 @@ class MainActivity : ComponentActivity() {
                 provider = provider,
                 onSuccess = { account ->
                     lifecycleScope.launch {
-                        val resolvedAccount = if (provider == StreamingProvider.YOUTUBE) {
-                            val channelResult = runCatching {
-                                val channel = withContext(Dispatchers.IO) {
-                                    youTubeApiClient.getCurrentChannel(account.accessToken)
-                                }
-                                account.copy(userName = channel.title, channelId = channel.id)
-                            }
-                            if (channelResult.isFailure) {
-                                withContext(Dispatchers.IO) {
-                                    runCatching {
-                                        googleTokenRevoker.revoke(
-                                            account.refreshToken ?: account.accessToken,
-                                        )
-                                    }
-                                }
-                                oauthManager.disconnect(provider)
-                                Toast.makeText(
-                                    this@MainActivity,
-                                    channelResult.exceptionOrNull()?.message
-                                        ?: "Could not load the YouTube channel",
-                                    Toast.LENGTH_LONG,
-                                ).show()
-                                return@launch
-                            }
-                            channelResult.getOrThrow()
-                        } else {
-                            account
+                        try {
+                            completeYouTubeConnection(provider, account)
+                        } finally {
+                            finishProviderOperation(provider)
                         }
-                        if (resolvedAccount != account && !tokenManager.saveAccount(resolvedAccount)) {
-                            oauthManager.disconnect(provider)
-                            Toast.makeText(
-                                this@MainActivity,
-                                "Secure account storage is unavailable",
-                                Toast.LENGTH_LONG,
-                            ).show()
-                            return@launch
-                        }
-                        viewModel.addProviderDestination(resolvedAccount.provider)
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Connected to ${provider.displayName}",
-                            Toast.LENGTH_SHORT,
-                        ).show()
                     }
                 },
                 onError = { error ->
                     runOnUiThread {
+                        finishProviderOperation(provider)
                         Toast.makeText(this, "Auth failed: $error", Toast.LENGTH_LONG).show()
                     }
                 },
             )
         } else {
+            finishProviderOperation(provider)
             Toast.makeText(this, "Authentication cancelled", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Resolves the channel for a new YouTube grant and creates its destination. */
+    private suspend fun completeYouTubeConnection(
+        provider: StreamingProvider,
+        account: ProviderAccount,
+    ) {
+        val resolvedAccount = if (provider == StreamingProvider.YOUTUBE) {
+            val channelResult = runCatching {
+                val channel = withContext(Dispatchers.IO) {
+                    youTubeApiClient.getCurrentChannel(account.accessToken)
+                }
+                account.copy(userName = channel.title, channelId = channel.id)
+            }
+            if (channelResult.isFailure) {
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        googleTokenRevoker.revoke(account.refreshToken ?: account.accessToken)
+                    }
+                }
+                oauthManager.disconnect(provider)
+                Toast.makeText(
+                    this,
+                    channelResult.exceptionOrNull()?.message ?: "Could not load the YouTube channel",
+                    Toast.LENGTH_LONG,
+                ).show()
+                return
+            }
+            channelResult.getOrThrow()
+        } else {
+            account
+        }
+        if (resolvedAccount != account && !tokenManager.saveAccount(resolvedAccount)) {
+            oauthManager.disconnect(provider)
+            Toast.makeText(this, "Secure account storage is unavailable", Toast.LENGTH_LONG).show()
+            return
+        }
+        viewModel.addProviderDestination(resolvedAccount.provider)
+        Toast.makeText(this, "Connected to ${provider.displayName}", Toast.LENGTH_SHORT).show()
+    }
+
+    /** Ends the visible connect/disconnect operation, if it still belongs to [provider]. */
+    private fun finishProviderOperation(provider: StreamingProvider?) {
+        if (provider == null || providerOperation?.provider == provider) {
+            providerOperation = null
         }
     }
 
@@ -355,12 +374,14 @@ class MainActivity : ComponentActivity() {
         tokenManager = TokenManager(applicationContext)
         oauthManager = OAuthManager(applicationContext, tokenManager)
         tokenManager.accounts.value.keys.forEach(viewModel::addProviderDestination)
-        currentScreen = if (viewModel.destinationRepository.destinations.value.isEmpty()) {
-            Screen.SETTINGS
-        } else {
-            Screen.PREVIEW
+        if (savedInstanceState == null || !restoreNavigation(savedInstanceState)) {
+            currentScreen = if (viewModel.destinationRepository.destinations.value.isEmpty()) {
+                Screen.SETTINGS
+            } else {
+                Screen.PREVIEW
+            }
+            previousRootScreen = currentScreen
         }
-        previousRootScreen = currentScreen
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -385,6 +406,7 @@ class MainActivity : ComponentActivity() {
             val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
             val streamingStats by viewModel.streamingStats.collectAsStateWithLifecycle()
             val isSourceSwitching by viewModel.isSourceSwitching.collectAsStateWithLifecycle()
+            val destinationStatuses by viewModel.destinationStatuses.collectAsStateWithLifecycle()
             val destinations by viewModel.destinationRepository.destinations.collectAsStateWithLifecycle()
             val videoSettings by viewModel.videoSettings.collectAsStateWithLifecycle()
             val audioSettings by viewModel.audioSettings.collectAsStateWithLifecycle()
@@ -457,6 +479,7 @@ class MainActivity : ComponentActivity() {
                                     audioSettings = audioSettings,
                                     availableVideoSources = availableVideoSources,
                                     isSourceSwitching = isSourceSwitching,
+                                    destinationStatuses = destinationStatuses,
                                 ),
                                 previewContent = { modifier ->
                                     StreamPreview(
@@ -522,12 +545,20 @@ class MainActivity : ComponentActivity() {
                                 onNavigateDestinations = { navigateToConfiguration(Screen.DESTINATIONS) },
                                 onAddDestination = { navigateToConfiguration(Screen.ADD_DESTINATION) },
                                 onNavigateAccounts = { navigateToConfiguration(Screen.ACCOUNTS) },
-                                onConnectProvider = ::connectProvider,
+                                onConnectProvider = { provider ->
+                                    // Show progress (and Twitch's code) where the operation lives.
+                                    navigateToConfiguration(Screen.ACCOUNTS)
+                                    connectProvider(provider)
+                                },
+                                providerOperationActive = providerOperation != null,
                             )
                             Screen.ACCOUNTS -> AccountsScreen(
                                 connectedAccounts = connectedAccounts,
+                                operation = providerOperation,
                                 onConnect = { provider -> connectProvider(provider) },
                                 onDisconnect = ::disconnectProvider,
+                                onCancelOperation = ::cancelProviderOperation,
+                                onOpenVerificationPage = ::openVerificationPage,
                                 onBack = { navigateBack() },
                             )
                             Screen.ABOUT -> AboutScreen(
@@ -589,6 +620,34 @@ class MainActivity : ComponentActivity() {
                 booleanArrayOf(settings.enableMicrophone, settings.enableSystemAudio),
             )
         }
+        // A browser sign-in result can arrive after recreation; keep it attributable.
+        outState.putString(STATE_PENDING_OAUTH_PROVIDER, pendingOAuthProvider?.name)
+        outState.putString(STATE_CURRENT_SCREEN, currentScreen.name)
+        outState.putString(STATE_PREVIOUS_ROOT_SCREEN, previousRootScreen.name)
+        outState.putString(STATE_EDIT_DESTINATION_ID, editDestinationId)
+    }
+
+    /**
+     * Returns the user to the screen they were on before recreation. Returns false
+     * when nothing usable was saved, so the caller picks the default start screen.
+     */
+    private fun restoreNavigation(state: Bundle): Boolean {
+        val screen = state.getString(STATE_CURRENT_SCREEN)
+            ?.let { name -> Screen.entries.firstOrNull { it.name == name } }
+            ?: return false
+        val editId = state.getString(STATE_EDIT_DESTINATION_ID)
+        editDestinationId = editId
+        currentScreen = when {
+            screen == Screen.EDIT_DESTINATION &&
+                (editId == null || viewModel.destinationRepository.getById(editId) == null) ->
+                Screen.DESTINATIONS
+            screen == Screen.PREVIEW && viewModel.destinationRepository.count() == 0 -> Screen.SETTINGS
+            else -> screen
+        }
+        previousRootScreen = state.getString(STATE_PREVIOUS_ROOT_SCREEN)
+            ?.let { name -> Screen.entries.firstOrNull { it.name == name } }
+            ?: currentScreen
+        return true
     }
 
     private fun restorePendingRequests(state: Bundle) {
@@ -603,6 +662,11 @@ class MainActivity : ComponentActivity() {
                     enableSystemAudio = systemAudio,
                 )
             }
+        pendingOAuthProvider = state.getString(STATE_PENDING_OAUTH_PROVIDER)
+            ?.let { name -> StreamingProvider.entries.firstOrNull { it.name == name } }
+        providerOperation = pendingOAuthProvider?.let {
+            ProviderOperationState(it, ProviderOperationState.Kind.CONNECTING)
+        }
     }
 
     /**
@@ -785,6 +849,8 @@ class MainActivity : ComponentActivity() {
 
     /** Initiates OAuth flow for a streaming provider. */
     private fun connectProvider(provider: StreamingProvider) {
+        // One provider operation at a time; repeated taps must not start parallel logins.
+        if (providerOperation != null) return
         if (provider == StreamingProvider.TWITCH) {
             connectTwitch()
             return
@@ -798,6 +864,7 @@ class MainActivity : ComponentActivity() {
             ).show()
             return
         }
+        providerOperation = ProviderOperationState(provider, ProviderOperationState.Kind.CONNECTING)
         pendingOAuthProvider = provider
         oauthLauncher.launch(intent)
     }
@@ -813,76 +880,103 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        lifecycleScope.launch {
-            runCatching {
+        val provider = StreamingProvider.TWITCH
+        providerOperation = ProviderOperationState(provider, ProviderOperationState.Kind.CONNECTING)
+        twitchConnectJob = lifecycleScope.launch {
+            try {
                 val authorization = withContext(Dispatchers.IO) {
                     twitchAuthClient.requestDeviceAuthorization(clientId)
                 }
-                startActivity(Intent(Intent.ACTION_VIEW, authorization.verificationUri.toUri()))
-                Toast.makeText(
-                    this@MainActivity,
-                    "Approve code ${authorization.userCode} in Twitch",
-                    Toast.LENGTH_LONG,
-                ).show()
+                providerOperation = ProviderOperationState(
+                    provider = provider,
+                    kind = ProviderOperationState.Kind.CONNECTING,
+                    userCode = authorization.userCode,
+                    verificationUri = authorization.verificationUri,
+                )
+                openVerificationPage(authorization.verificationUri)
                 val account = withContext(Dispatchers.IO) {
                     twitchAuthClient.awaitAccount(clientId, authorization)
                 }
                 if (!tokenManager.saveAccount(account)) {
                     error("Secure token storage is unavailable")
                 }
-                viewModel.addProviderDestination(StreamingProvider.TWITCH)
+                viewModel.addProviderDestination(provider)
                 Toast.makeText(this@MainActivity, "Connected to Twitch", Toast.LENGTH_SHORT).show()
-            }.onFailure { error ->
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
                 Toast.makeText(
                     this@MainActivity,
                     error.message ?: "Twitch authentication failed",
                     Toast.LENGTH_LONG,
                 ).show()
+            } finally {
+                twitchConnectJob = null
+                finishProviderOperation(provider)
             }
         }
     }
 
+    /** Stops waiting for device approval; the unused code simply expires at Twitch. */
+    private fun cancelProviderOperation() {
+        val operation = providerOperation ?: return
+        if (!operation.isCancellable) return
+        twitchConnectJob?.cancel()
+        providerOperation = null
+        Toast.makeText(
+            this,
+            "${operation.provider.displayName} connection cancelled",
+            Toast.LENGTH_SHORT,
+        ).show()
+    }
+
+    private fun openVerificationPage(uri: String) {
+        runCatching {
+            require(uri.startsWith("https://"))
+            startActivity(Intent(Intent.ACTION_VIEW, uri.toUri()))
+        }.onFailure {
+            Toast.makeText(this, "Could not open the sign-in page", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun disconnectProvider(provider: StreamingProvider) {
+        if (providerOperation != null) return
+        val account = tokenManager.getAccount(provider) ?: return
+        providerOperation = ProviderOperationState(provider, ProviderOperationState.Kind.DISCONNECTING)
         lifecycleScope.launch {
-            val account = tokenManager.getAccount(provider) ?: return@launch
-            if (provider == StreamingProvider.YOUTUBE) {
+            try {
+                revokeAndDisconnect(provider, account)
+            } finally {
+                finishProviderOperation(provider)
+            }
+        }
+    }
+
+    private suspend fun revokeAndDisconnect(provider: StreamingProvider, account: ProviderAccount) {
+        val revoked = when (provider) {
+            StreamingProvider.YOUTUBE -> {
                 val token = account.refreshToken ?: account.accessToken
-                val revoked = runCatching {
-                    withContext(Dispatchers.IO) { googleTokenRevoker.revoke(token) }
-                }
-                if (revoked.isFailure) {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Could not revoke YouTube access. Check your connection and try again.",
-                        Toast.LENGTH_LONG,
-                    ).show()
-                    return@launch
-                }
-            } else if (provider == StreamingProvider.TWITCH) {
-                val clientId = OAuthConfig.getClientId(provider, this@MainActivity)
+                runCatching { withContext(Dispatchers.IO) { googleTokenRevoker.revoke(token) } }
+            }
+            StreamingProvider.TWITCH -> {
+                val clientId = OAuthConfig.getClientId(provider, this)
                     ?: error("Configure the Twitch client ID")
-                val revoked = runCatching {
-                    withContext(Dispatchers.IO) {
-                        twitchAuthClient.revoke(clientId, account.accessToken)
-                    }
-                }
-                if (revoked.isFailure) {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Could not revoke Twitch access. Check your connection and try again.",
-                        Toast.LENGTH_LONG,
-                    ).show()
-                    return@launch
+                runCatching {
+                    withContext(Dispatchers.IO) { twitchAuthClient.revoke(clientId, account.accessToken) }
                 }
             }
-            oauthManager.disconnect(provider)
-            viewModel.removeProviderDestination(provider)
-            Toast.makeText(
-                this@MainActivity,
-                "Disconnected from ${provider.displayName}",
-                Toast.LENGTH_SHORT,
-            ).show()
         }
+        if (revoked.isFailure) {
+            Toast.makeText(
+                this,
+                "Could not revoke ${provider.displayName} access. Check your connection and try again.",
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        oauthManager.disconnect(provider)
+        viewModel.removeProviderDestination(provider)
+        Toast.makeText(this, "Disconnected from ${provider.displayName}", Toast.LENGTH_SHORT).show()
     }
 
     /**
@@ -1120,6 +1214,10 @@ class MainActivity : ComponentActivity() {
         const val STATE_PENDING_CAMERA_SOURCE = "pending_camera_source"
         const val STATE_PENDING_LIVE_SCREEN_SWITCH = "pending_live_screen_switch"
         const val STATE_PENDING_LIVE_AUDIO = "pending_live_audio"
+        const val STATE_PENDING_OAUTH_PROVIDER = "pending_oauth_provider"
+        const val STATE_CURRENT_SCREEN = "current_screen"
+        const val STATE_PREVIOUS_ROOT_SCREEN = "previous_root_screen"
+        const val STATE_EDIT_DESTINATION_ID = "edit_destination_id"
     }
 }
 

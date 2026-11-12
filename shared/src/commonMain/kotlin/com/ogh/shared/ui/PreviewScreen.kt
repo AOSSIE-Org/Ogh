@@ -60,12 +60,14 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ogh.shared.domain.AudioSettings
 import com.ogh.shared.domain.Destination
+import com.ogh.shared.domain.DestinationConnectionStatus
 import com.ogh.shared.domain.StreamState
 import com.ogh.shared.domain.StreamingStats
 import com.ogh.shared.domain.VideoSettings
@@ -84,6 +86,8 @@ data class PreviewUiState(
     val audioSettings: AudioSettings,
     val availableVideoSources: List<VideoSource>,
     val isSourceSwitching: Boolean = false,
+    /** Per-destination RTMP state for the current session, keyed by destination ID. */
+    val destinationStatuses: Map<String, DestinationConnectionStatus> = emptyMap(),
 )
 
 private val ControlHeight = 56.dp
@@ -123,6 +127,7 @@ fun PreviewScreen(
                     selectedSource = state.videoSettings.source,
                     audioSettings = state.audioSettings,
                     destinations = state.destinations,
+                    destinationStatuses = state.destinationStatuses,
                     cameraCount = cameraCount,
                     streamState = state.streamState,
                     isSourceSwitching = state.isSourceSwitching,
@@ -206,6 +211,7 @@ private fun PreviewControls(
     selectedSource: VideoSource,
     audioSettings: AudioSettings,
     destinations: List<Destination>,
+    destinationStatuses: Map<String, DestinationConnectionStatus>,
     cameraCount: Int,
     streamState: StreamState,
     isSourceSwitching: Boolean,
@@ -278,6 +284,7 @@ private fun PreviewControls(
         ) {
             DestinationStrip(
                 enabledDestinations = enabledDestinations,
+                statuses = destinationStatuses,
                 onOpenDestinations = onOpenDestinations.takeUnless { streamState.locksConfiguration },
             )
             if (useSingleRow) {
@@ -321,6 +328,7 @@ private fun ControlRow(
 @Composable
 private fun DestinationStrip(
     enabledDestinations: List<Destination>,
+    statuses: Map<String, DestinationConnectionStatus>,
     onOpenDestinations: (() -> Unit)?,
 ) {
     if (enabledDestinations.isEmpty()) {
@@ -378,6 +386,21 @@ private fun DestinationStrip(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.widthIn(max = 160.dp),
                 )
+                // During a session each chip also states its own output's connection.
+                statuses[destination.id]?.let { status ->
+                    Text(
+                        text = " · ${status.displayName}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = when (status) {
+                            DestinationConnectionStatus.LIVE -> OghColors.Success
+                            DestinationConnectionStatus.CONNECTING -> OghColors.Warning
+                            DestinationConnectionStatus.FAILED,
+                            DestinationConnectionStatus.DISCONNECTED -> OghColors.Error
+                        },
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }
@@ -504,32 +527,67 @@ private fun SelectionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier
-            .height(ControlHeight)
-            .semantics { this.selected = selected },
-        shape = MaterialTheme.shapes.large,
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (selected) OghColors.Violet.copy(alpha = 0.24f) else Color.Transparent,
-            contentColor = if (selected) OghColors.VioletLight else Color.White,
-        ),
-        border = BorderStroke(1.dp, if (selected) OghColors.Violet else OghColors.Outline),
-        contentPadding = PaddingValues(horizontal = OghSpacing.ExtraSmall, vertical = 6.dp),
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+    Box(modifier = modifier.height(ControlHeight)) {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier
+                .fillMaxSize()
+                .semantics {
+                    this.selected = selected
+                    stateDescription = if (selected) "On" else "Off"
+                },
+            shape = MaterialTheme.shapes.large,
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (selected) OghColors.Violet.copy(alpha = 0.24f) else Color.Transparent,
+                contentColor = if (selected) OghColors.VioletLight else Color.White,
+            ),
+            // Selection is also carried by border weight and a check badge, not colour alone.
+            border = BorderStroke(
+                if (selected) 2.dp else 1.dp,
+                if (selected) OghColors.Violet else OghColors.Outline,
+            ),
+            contentPadding = PaddingValues(horizontal = OghSpacing.ExtraSmall, vertical = 6.dp),
         ) {
-            OghIconImage(icon = icon, tint = LocalContentColor.current, size = 18.dp)
-            Text(
-                text = label,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.labelMedium,
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                OghIconImage(icon = icon, tint = LocalContentColor.current, size = 18.dp)
+                Text(
+                    text = label,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
+        if (selected) {
+            SelectedBadge(
+                color = if (enabled) OghColors.Violet else OghColors.Violet.copy(alpha = 0.38f),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(5.dp),
             )
         }
+    }
+}
+
+/** Small filled check marking a selected toggle; decorative for screen readers. */
+@Composable
+private fun SelectedBadge(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(12.dp)) {
+        drawCircle(color = color)
+        val check = Path().apply {
+            moveTo(size.width * 0.28f, size.height * 0.52f)
+            lineTo(size.width * 0.44f, size.height * 0.68f)
+            lineTo(size.width * 0.73f, size.height * 0.36f)
+        }
+        drawPath(
+            path = check,
+            color = Color.White,
+            style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
     }
 }
 

@@ -36,6 +36,24 @@ class StreamEndpointPlannerTest {
     }
 
     @Test
+    fun targetPlan_mapsEachOutputIndexToItsDestinationInEndpointOrder() {
+        val manual = destination("manual", DestinationType.RTMP_MANUAL)
+        val disabled = destination("disabled", DestinationType.RTMP_MANUAL, enabled = false)
+        val youtube = destination("youtube", DestinationType.YOUTUBE_OAUTH)
+        val twitch = destination("twitch", DestinationType.TWITCH_OAUTH)
+        val destinations = listOf(manual, disabled, youtube, twitch)
+        val providerEndpoints = mapOf(DestinationType.TWITCH_OAUTH to "rtmps://twitch/app/key")
+
+        val targets = StreamEndpointPlanner.enabledTargets(destinations, providerEndpoints)
+
+        assertEquals(listOf("manual", "twitch"), targets.map(PlannedEndpoint::destinationId))
+        assertEquals(
+            StreamEndpointPlanner.enabledEndpoints(destinations, providerEndpoints),
+            targets.map(PlannedEndpoint::endpoint),
+        )
+    }
+
+    @Test
     fun manualSelection_excludesDisabledAndProviderDestinations() {
         val enabled = destination("enabled", DestinationType.RTMP_MANUAL)
         val disabled = destination("disabled", DestinationType.RTMP_MANUAL, enabled = false)
