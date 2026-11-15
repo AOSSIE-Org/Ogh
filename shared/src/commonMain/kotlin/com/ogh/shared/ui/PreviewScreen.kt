@@ -58,7 +58,10 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -128,7 +131,6 @@ fun PreviewScreen(
                     selectedSource = state.videoSettings.source,
                     audioSettings = state.audioSettings,
                     destinations = state.destinations,
-                    destinationStatuses = state.destinationStatuses,
                     cameraCount = cameraCount,
                     streamState = state.streamState,
                     isSourceSwitching = state.isSourceSwitching,
@@ -178,14 +180,19 @@ fun PreviewScreen(
                         }
                     }
                     if (state.streamState != StreamState.IDLE) {
+                        val summary = summarizeSessionDestinations(
+                            state.destinations,
+                            state.destinationStatuses,
+                        )
                         SessionStatus(
-                            statusMessage = if (state.isSourceSwitching) {
-                                "Switching source…"
-                            } else {
-                                state.statusMessage
+                            statusMessage = when {
+                                state.isSourceSwitching -> "Switching source…"
+                                isStreaming && summary.total > 0 -> summary.liveHeadline
+                                else -> state.statusMessage
                             },
                             elapsedTime = if (isActive) state.stats.formattedTime else null,
                             bitrate = if (isActive) state.stats.formattedBitrate else null,
+                            problems = summary.problems,
                         )
                     }
                 }
@@ -212,7 +219,6 @@ private fun PreviewControls(
     selectedSource: VideoSource,
     audioSettings: AudioSettings,
     destinations: List<Destination>,
-    destinationStatuses: Map<String, DestinationConnectionStatus>,
     cameraCount: Int,
     streamState: StreamState,
     isSourceSwitching: Boolean,
@@ -248,6 +254,7 @@ private fun PreviewControls(
         SelectionButton(
             label = "Mic",
             icon = OghIcon.MICROPHONE,
+            offIcon = OghIcon.MICROPHONE_OFF,
             selected = audioSettings.enableMicrophone,
             enabled = !isPreparing,
             onClick = onToggleMicrophone,
@@ -256,6 +263,7 @@ private fun PreviewControls(
         SelectionButton(
             label = "System Audio",
             icon = OghIcon.SPEAKER,
+            offIcon = OghIcon.SPEAKER_OFF,
             selected = audioSettings.enableSystemAudio,
             enabled = !isPreparing,
             onClick = onToggleSystemAudio,
@@ -283,11 +291,14 @@ private fun PreviewControls(
                 .padding(horizontal = OghSpacing.Large, vertical = OghSpacing.Medium),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            DestinationStrip(
-                enabledDestinations = enabledDestinations,
-                statuses = destinationStatuses,
-                onOpenDestinations = onOpenDestinations.takeUnless { streamState.locksConfiguration },
-            )
+            // Where Go Live will publish. Destinations cannot change during a session,
+            // and live per-destination state is shown in the status card instead.
+            if (!streamState.locksConfiguration) {
+                DestinationStrip(
+                    enabledDestinations = enabledDestinations,
+                    onOpenDestinations = onOpenDestinations,
+                )
+            }
             if (useSingleRow) {
                 ControlRow {
                     inputControls()
@@ -329,7 +340,6 @@ private fun ControlRow(
 @Composable
 private fun DestinationStrip(
     enabledDestinations: List<Destination>,
-    statuses: Map<String, DestinationConnectionStatus>,
     onOpenDestinations: (() -> Unit)?,
 ) {
     if (enabledDestinations.isEmpty()) {
@@ -349,18 +359,16 @@ private fun DestinationStrip(
         }
         return
     }
+    val description = "Sending to " + enabledDestinations.joinToString { it.name }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
+            .horizontalScroll(rememberScrollState())
+            // The chips sit directly above Go Live, so the label is spoken, not drawn.
+            .clearAndSetSemantics { contentDescription = description },
         horizontalArrangement = Arrangement.spacedBy(OghSpacing.Small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "Sending to",
-            style = MaterialTheme.typography.labelMedium,
-            color = OghColors.OnSurfaceMuted,
-        )
         enabledDestinations.forEach { destination ->
             Row(
                 modifier = Modifier
@@ -387,21 +395,6 @@ private fun DestinationStrip(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.widthIn(max = 160.dp),
                 )
-                // During a session each chip also states its own output's connection.
-                statuses[destination.id]?.let { status ->
-                    Text(
-                        text = " · ${status.displayName}",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = when (status) {
-                            DestinationConnectionStatus.LIVE -> OghColors.Success
-                            DestinationConnectionStatus.CONNECTING -> OghColors.Warning
-                            DestinationConnectionStatus.FAILED,
-                            DestinationConnectionStatus.DISCONNECTED -> OghColors.Error
-                        },
-                        maxLines = 1,
-                    )
-                }
             }
         }
     }
@@ -518,7 +511,11 @@ private fun StopConfirmation(
     )
 }
 
-/** A source or audio toggle: icon above a short label, with selection exposed to accessibility. */
+/**
+ * A source or audio toggle: icon above a short label. Selection is shown by a solid
+ * fill and heavier border, audio toggles also switch to a slashed "off" icon, and
+ * both states are exposed to accessibility services, so colour is never the only cue.
+ */
 @Composable
 private fun SelectionButton(
     label: String,
@@ -527,75 +524,51 @@ private fun SelectionButton(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    offIcon: OghIcon? = null,
 ) {
-    Box(modifier = modifier.height(ControlHeight)) {
-        OutlinedButton(
-            onClick = onClick,
-            enabled = enabled,
-            modifier = Modifier
-                .fillMaxSize()
-                .semantics {
-                    this.selected = selected
-                    stateDescription = if (selected) "On" else "Off"
-                },
-            shape = MaterialTheme.shapes.large,
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = if (selected) OghColors.Violet.copy(alpha = 0.24f) else Color.Transparent,
-                contentColor = if (selected) OghColors.VioletLight else Color.White,
-            ),
-            // Selection is also carried by border weight and a check badge, not colour alone.
-            border = BorderStroke(
-                if (selected) 2.dp else 1.dp,
-                if (selected) OghColors.Violet else OghColors.Outline,
-            ),
-            contentPadding = PaddingValues(horizontal = OghSpacing.ExtraSmall, vertical = 6.dp),
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier
+            .height(ControlHeight)
+            .semantics {
+                this.selected = selected
+                stateDescription = if (selected) "On" else "Off"
+            },
+        shape = MaterialTheme.shapes.large,
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (selected) OghColors.Violet.copy(alpha = 0.35f) else Color.Transparent,
+            contentColor = if (selected) OghColors.VioletLight else Color.White,
+        ),
+        border = BorderStroke(
+            if (selected) 2.dp else 1.dp,
+            if (selected) OghColors.Violet else OghColors.Outline,
+        ),
+        contentPadding = PaddingValues(horizontal = OghSpacing.ExtraSmall, vertical = 6.dp),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                OghIconImage(icon = icon, tint = LocalContentColor.current, size = 18.dp)
-                val labelStyle = MaterialTheme.typography.labelMedium
-                // Shrinks (never grows) so labels such as "System Audio" stay whole at large font scales.
-                Text(
-                    text = label,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = labelStyle,
-                    autoSize = TextAutoSize.StepBased(
-                        minFontSize = 8.sp,
-                        maxFontSize = labelStyle.fontSize,
-                        stepSize = 0.5.sp,
-                    ),
-                )
-            }
-        }
-        if (selected) {
-            SelectedBadge(
-                color = if (enabled) OghColors.Violet else OghColors.Violet.copy(alpha = 0.38f),
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(5.dp),
+            OghIconImage(
+                icon = if (!selected && offIcon != null) offIcon else icon,
+                tint = LocalContentColor.current,
+                size = 18.dp,
+            )
+            val labelStyle = MaterialTheme.typography.labelMedium
+            // Shrinks (never grows) so labels such as "System Audio" stay whole at large font scales.
+            Text(
+                text = label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = labelStyle,
+                autoSize = TextAutoSize.StepBased(
+                    minFontSize = 8.sp,
+                    maxFontSize = labelStyle.fontSize,
+                    stepSize = 0.5.sp,
+                ),
             )
         }
-    }
-}
-
-/** Small filled check marking a selected toggle; decorative for screen readers. */
-@Composable
-private fun SelectedBadge(color: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.size(12.dp)) {
-        drawCircle(color = color)
-        val check = Path().apply {
-            moveTo(size.width * 0.28f, size.height * 0.52f)
-            lineTo(size.width * 0.44f, size.height * 0.68f)
-            lineTo(size.width * 0.73f, size.height * 0.36f)
-        }
-        drawPath(
-            path = check,
-            color = Color.White,
-            style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
-        )
     }
 }
 
@@ -647,6 +620,7 @@ private fun SessionStatus(
     statusMessage: String,
     elapsedTime: String?,
     bitrate: String?,
+    problems: List<DestinationProblem>,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -654,22 +628,63 @@ private fun SessionStatus(
         color = Color.Black.copy(alpha = 0.68f),
         shape = MaterialTheme.shapes.large,
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(OghSpacing.Large),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(
-                text = statusMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White,
-                modifier = Modifier.weight(1f),
-            )
-            if (elapsedTime != null) StatItem("Time", elapsedTime)
-            if (bitrate != null) StatItem("Bitrate", bitrate)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(OghSpacing.Large),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = statusMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    modifier = Modifier.weight(1f),
+                )
+                if (elapsedTime != null) StatItem("Time", elapsedTime)
+                if (bitrate != null) StatItem("Bitrate", bitrate)
+            }
+            if (problems.isNotEmpty()) {
+                DestinationProblems(problems)
+            }
         }
     }
 }
+
+/** Names only the outputs that need attention; healthy ones are counted in the headline. */
+@Composable
+private fun DestinationProblems(problems: List<DestinationProblem>) {
+    val shown = problems.take(MAX_PROBLEM_ROWS)
+    Column(
+        // Announce when an output fails, without interrupting other speech.
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        shown.forEach { problem ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(6.dp).background(OghColors.Error, CircleShape))
+                Spacer(Modifier.size(OghSpacing.Small))
+                Text(
+                    text = "${problem.name} · ${problem.status.displayName}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = OghColors.Error,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (problems.size > shown.size) {
+            Text(
+                text = "+${problems.size - shown.size} more",
+                style = MaterialTheme.typography.labelSmall,
+                color = OghColors.OnSurfaceMuted,
+            )
+        }
+    }
+}
+
+private const val MAX_PROBLEM_ROWS = 2
 
 @Composable
 private fun StatItem(label: String, value: String) {
