@@ -40,6 +40,9 @@ Notable user-visible changes are recorded here. The format follows
   destination strip.
 - Fixed **Stop** crashing the app when two or more destinations were enabled;
   late RTMP disconnect callbacks from the torn-down pipeline are now ignored.
+- When every destination fails or disconnects, Ogh now releases the camera,
+  microphone, and screen capture instead of keeping them running, and the next
+  **Go Live** works instead of failing with "Failed to prepare capture source".
 - The streaming notification now shows the real session state (connecting,
   live with connected-destination count, video hidden, or no destination
   connected), opens Ogh when tapped, and has a **Stop** action.

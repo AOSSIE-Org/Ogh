@@ -637,6 +637,10 @@ class ScreenCaptureService : Service() {
             repeat(destinationCount) { index ->
                 multiStream.stopStream(MultiType.RTMP, index)
             }
+            // MultiStream ends the shared encoder session only when no client reports
+            // streaming, and a client whose connection failed still does. Ending it
+            // explicitly lets the next prepareAudio()/prepareVideo() succeed.
+            if (multiStream.isStreaming) multiStream.stopStream()
         }
         videoPaused = false
     }
@@ -817,6 +821,17 @@ class ScreenCaptureService : Service() {
         destinationCount = 1
         initializeStream(destinationCount)
         stopSelf()
+    }
+
+    /**
+     * Releases capture, audio, and projection after every output ended on its own.
+     * Posted so it never runs inside an RTMP callback, and skipped when the session
+     * was already finished (for example by MediaProjection revocation).
+     */
+    fun finishSessionAfterOutputsEnded() {
+        projectionCallbackHandler.post {
+            if (isStreaming()) finishSession()
+        }
     }
 
     /** Whether the stream is currently publishing. */

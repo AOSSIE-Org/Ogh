@@ -508,6 +508,7 @@ class StreamViewModel(
         _streamState.value = StreamState.ERROR
         _statusMessage.value = "Connection failed: $reason"
         log(Subsystems.RTMP, LogLevel.ERROR, "Connection failed: $reason")
+        endSessionAfterOutputsEnded()
     }
 
     override fun onDisconnect() {
@@ -520,6 +521,7 @@ class StreamViewModel(
         _statusMessage.value = "Disconnected"
         _streamingStats.value = StreamingStats()
         log(Subsystems.RTMP, LogLevel.WARNING, "Disconnected from server")
+        endSessionAfterOutputsEnded()
     }
 
     override fun onAuthError() {
@@ -527,6 +529,13 @@ class StreamViewModel(
         _streamState.value = StreamState.ERROR
         _statusMessage.value = "Authentication failed"
         log(Subsystems.RTMP, LogLevel.ERROR, "Authentication error")
+        endSessionAfterOutputsEnded()
+    }
+
+    /** Every output failed or disconnected without a user stop: release capture like Stop does. */
+    private fun endSessionAfterOutputsEnded() {
+        providerEndpoints = emptyMap()
+        ScreenCaptureService.instance?.finishSessionAfterOutputsEnded()
     }
 
     override fun onAuthSuccess() {

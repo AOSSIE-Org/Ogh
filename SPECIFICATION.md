@@ -365,7 +365,11 @@ completes the request the user actually made instead of starting a broadcast.
 
 One destination failure does not intentionally terminate healthy outputs. The
 ViewModel reports terminal connection failure only after all configured outputs
-have failed/disconnected. A user-requested stop is tracked so later disconnect
+have failed/disconnected, and then ends the capture session the way Stop does:
+the encoder session is stopped explicitly (a failed RTMP client can still
+report streaming, which would otherwise keep it open), and camera, microphone,
+and MediaProjection are released. A bound Preview may then restart its idle
+camera preview, and the next **Go Live** prepares a fresh session. A user-requested stop is tracked so later disconnect
 callbacks cannot overwrite the explicit stopped state with an error.
 
 Starting multiple RTMP clients is transactional from the application's
