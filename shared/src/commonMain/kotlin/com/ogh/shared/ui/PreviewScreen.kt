@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -554,11 +555,18 @@ private fun SelectionButton(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 OghIconImage(icon = icon, tint = LocalContentColor.current, size = 18.dp)
+                val labelStyle = MaterialTheme.typography.labelMedium
+                // Shrinks (never grows) so labels such as "System Audio" stay whole at large font scales.
                 Text(
                     text = label,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = labelStyle,
+                    autoSize = TextAutoSize.StepBased(
+                        minFontSize = 8.sp,
+                        maxFontSize = labelStyle.fontSize,
+                        stepSize = 0.5.sp,
+                    ),
                 )
             }
         }

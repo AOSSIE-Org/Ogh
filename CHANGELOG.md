@@ -54,6 +54,8 @@ Notable user-visible changes are recorded here. The format follows
 - Selected source and audio buttons now show a check badge, a heavier border,
   and an On/Off state for screen readers, so selection no longer relies on
   colour alone.
+- Preview source and audio labels shrink to fit instead of truncating at large
+  system font sizes, so **System Audio** stays readable.
 - The open screen and destination form input (except the stream key) survive
   activity recreation, and a pending YouTube sign-in is no longer lost.
 - Cold start uses a dark launch window instead of flashing white.
