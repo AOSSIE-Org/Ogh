@@ -122,3 +122,30 @@ issue. Discuss changes first only when they alter security/privacy, provider
 scopes, the capture architecture, or a public compatibility contract. Use the
 pull-request template and mark a check not applicable only with a concise
 reason; do not delete unperformed checks.
+
+### Pull-request scope and independence
+
+- Prefer one coherent, independently reviewable scope per pull request. A PR may be
+  large when the work is genuinely related and the rationale, design, and
+  validation justify keeping it together.
+- Keep changes that are necessary parts of the same outcome in one PR (for
+  example, an implementation and its directly related tests/documentation).
+  Do not bundle unrelated features, refactors, visual redesigns, or cleanup just
+  because they touch nearby files.
+- Keep independent work in separate PRs. For example, a UI-only redesign should
+  be submitted independently from a streaming lifecycle fix, even when both
+  affect the same screen or feature area.
+- Do not stack dependent PRs or submit a set of dependent PRs in parallel.
+  Start independent PRs from the current target branch. If one change truly
+  depends on another, wait for the prerequisite PR to be merged before opening
+  the dependent PR, unless maintainers explicitly agree on another review plan.
+- A PR should build and be reviewable on its own against its target branch; it
+  should not require reviewers to mentally combine unmerged branches to
+  understand or validate it.
+- Describe the single intended outcome, explain why the scope belongs together,
+  identify any user-visible or architectural impact, and list the tests and
+  manual checks performed. For UI changes, include screenshots or a recording
+  when they materially help reviewers assess the result.
+- If review identifies unrelated work, split that work into a separate
+  independent PR rather than expanding the current PR's scope.
+
