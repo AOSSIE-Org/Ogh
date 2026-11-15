@@ -15,11 +15,24 @@ object StreamEndpointPlanner {
     fun enabledEndpoints(
         destinations: List<Destination>,
         providerEndpoints: Map<DestinationType, String>,
-    ): List<String> = destinations.mapNotNull { destination ->
+    ): List<String> = enabledTargets(destinations, providerEndpoints).map(PlannedEndpoint::endpoint)
+
+    /**
+     * Same order as [enabledEndpoints], keeping the destination that owns each
+     * endpoint so per-output connection events can be reported by destination.
+     */
+    fun enabledTargets(
+        destinations: List<Destination>,
+        providerEndpoints: Map<DestinationType, String>,
+    ): List<PlannedEndpoint> = destinations.mapNotNull { destination ->
         if (!destination.enabled) return@mapNotNull null
-        when (destination.type) {
+        val endpoint = when (destination.type) {
             DestinationType.RTMP_MANUAL -> destination.fullEndpoint
             else -> providerEndpoints[destination.type]
-        }
+        } ?: return@mapNotNull null
+        PlannedEndpoint(destination.id, endpoint)
     }
 }
+
+/** One enabled destination and the in-memory endpoint it publishes to. */
+data class PlannedEndpoint(val destinationId: String, val endpoint: String)

@@ -84,6 +84,7 @@ fun SettingsScreen(
     onAddDestination: () -> Unit,
     onNavigateAccounts: () -> Unit,
     onConnectProvider: (StreamingProvider) -> Unit,
+    providerOperationActive: Boolean = false,
 ) {
     val hasDestinations = destinations.isNotEmpty()
     val enabledDestinations = destinations.count(Destination::enabled)
@@ -121,6 +122,7 @@ fun SettingsScreen(
                 )
             } else {
                 ConnectPlatformsCard(
+                    connectEnabled = !providerOperationActive,
                     onConnectProvider = onConnectProvider,
                     onAddDestination = onAddDestination,
                 )
@@ -258,6 +260,7 @@ private fun StreamDetailsCard(
 
 @Composable
 private fun ConnectPlatformsCard(
+    connectEnabled: Boolean,
     onConnectProvider: (StreamingProvider) -> Unit,
     onAddDestination: () -> Unit,
 ) {
@@ -283,6 +286,7 @@ private fun ConnectPlatformsCard(
                 StreamingProvider.entries.forEach { provider ->
                     Button(
                         onClick = { onConnectProvider(provider) },
+                        enabled = connectEnabled,
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 56.dp)
@@ -345,7 +349,7 @@ private fun SettingsNavigationRow(label: String, subtitle: String, onClick: () -
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 60.dp)
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

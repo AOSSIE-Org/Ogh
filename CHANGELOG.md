@@ -38,6 +38,32 @@ Notable user-visible changes are recorded here. The format follows
 - YouTube and Twitch now appear with their brand icons on the connection
   buttons, the Platforms list, the Destinations list, and the Preview
   destination strip.
+- Fixed **Stop** crashing the app when two or more destinations were enabled;
+  late RTMP disconnect callbacks from the torn-down pipeline are now ignored.
+- When every destination fails or disconnects, Ogh now releases the camera,
+  microphone, and screen capture instead of keeping them running, and the next
+  **Go Live** works instead of failing with "Failed to prepare capture source".
+- The streaming notification now shows the real session state (connecting,
+  live with connected-destination count, video hidden, or no destination
+  connected), opens Ogh when tapped, and has a **Stop** action.
+- While live, the Preview status card shows how many destinations are live
+  (**Live · 1 of 2 destinations**) and names any that failed or disconnected.
+  The destination strip now appears only before going live, without the
+  visible "Sending to" label.
+- Platforms shows connect/disconnect progress, keeps the Twitch device code on
+  screen with **Open Twitch** and **Cancel**, blocks parallel sign-ins, and
+  confirms before disconnecting.
+- The stream-key field has a **Show**/**Hide** toggle. Back buttons, destination
+  switches, Edit and Delete, and colour swatches are announced as labelled
+  controls to screen readers.
+- Selected source and audio buttons use a solid fill and heavier border, and
+  **Mic**/**System Audio** show slashed icons when off, with an On/Off state for
+  screen readers, so selection no longer relies on colour alone.
+- Preview source and audio labels shrink to fit instead of truncating at large
+  system font sizes, so **System Audio** stays readable.
+- The open screen and destination form input (except the stream key) survive
+  activity recreation, and a pending YouTube sign-in is no longer lost.
+- Cold start uses a dark launch window instead of flashing white.
 - Fixed a camera, audio, or screen-capture permission result that arrived after
   the activity was recreated (for example by a dark-mode change while the
   dialog was open) starting a broadcast without **Go Live**. The result now

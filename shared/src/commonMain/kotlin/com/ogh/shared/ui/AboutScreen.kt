@@ -43,16 +43,7 @@ fun AboutScreen(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "←",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onBack() }
-                        .wrapContentSize(Alignment.Center),
-                )
+                BackButton(onClick = onBack)
                 Spacer(Modifier.width(12.dp))
                 Text(
                     text = "About",

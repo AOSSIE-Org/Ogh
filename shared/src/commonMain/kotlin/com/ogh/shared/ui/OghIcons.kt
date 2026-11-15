@@ -22,7 +22,9 @@ internal enum class OghIcon {
     CAMERA,
     FLIP_CAMERA,
     MICROPHONE,
+    MICROPHONE_OFF,
     SPEAKER,
+    SPEAKER_OFF,
     EYE,
     EYE_OFF,
     STOP,
@@ -72,16 +74,23 @@ internal fun OghIconImage(
                 polyline(14.5f, 9.6f, 15.6f, 11.4f, 13.6f, 11.8f)
                 polyline(9.5f, 17.4f, 8.4f, 15.6f, 10.4f, 15.2f)
             }
-            OghIcon.MICROPHONE -> {
+            OghIcon.MICROPHONE, OghIcon.MICROPHONE_OFF -> {
                 roundRect(tint, 9f, 3f, 6f, 11f, 3f, scale, stroke)
                 drawArc(tint, 0f, 180f, false, p(5.5f, 4.5f), Size(13f * scale, 13f * scale), style = stroke)
                 line(12f, 17.5f, 12f, 21f)
                 line(8.5f, 21f, 15.5f, 21f)
+                if (icon == OghIcon.MICROPHONE_OFF) line(4f, 4f, 20f, 20f)
             }
-            OghIcon.SPEAKER -> {
+            OghIcon.SPEAKER, OghIcon.SPEAKER_OFF -> {
                 polyline(3f, 9f, 7f, 9f, 12f, 4.5f, 12f, 19.5f, 7f, 15f, 3f, 15f, close = true)
-                drawArc(tint, -45f, 90f, false, p(11f, 7.5f), Size(9f * scale, 9f * scale), style = stroke)
-                drawArc(tint, -50f, 100f, false, p(7f, 4f), Size(16f * scale, 16f * scale), style = stroke)
+                if (icon == OghIcon.SPEAKER) {
+                    drawArc(tint, -45f, 90f, false, p(11f, 7.5f), Size(9f * scale, 9f * scale), style = stroke)
+                    drawArc(tint, -50f, 100f, false, p(7f, 4f), Size(16f * scale, 16f * scale), style = stroke)
+                } else {
+                    // Muted: an x replaces the sound waves.
+                    line(15.5f, 9.5f, 20.5f, 14.5f)
+                    line(20.5f, 9.5f, 15.5f, 14.5f)
+                }
             }
             OghIcon.EYE, OghIcon.EYE_OFF -> {
                 val eye = Path().apply {
