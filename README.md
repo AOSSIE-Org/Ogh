@@ -67,7 +67,7 @@ provide an application client secret.
    optional pause image.
    Choose stream quality and whether the app interface stays in portrait.
    The orientation lock affects the interface only, not camera-frame orientation.
-3. Open Preview, choose **Screen** or **Camera**, select **Microphone** and/or
+3. Open Preview, choose **Screen** or **Camera**, select **Mic** and/or
    **System Audio**, then tap **Go Live** and grant the permissions Android
    requests.
 4. While live, use **Screen**, **Camera**/**Flip Camera**, **Hide Video**/**Show
